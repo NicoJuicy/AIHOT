@@ -82,7 +82,7 @@ test("a failed detail read stays observable and can recover on a later listing r
   assert.equal((await detail(id)).detailFailures, 0);
 });
 
-// 10-20..11-01: every "详情补全失败" follow-up left after the fixes was HN links to sites refusing us
+// 10-20..11-01: every "detail fetches fail" follow-up left after the fixes was HN links to sites refusing us
 // (401/403/419), closed as accepted each week; the site's answer is final, nothing of ours failed.
 test("a page the site refuses is recorded once, not counted as a failure and not read again; the entries behind it get the budget", async () => {
   for (const status of [402, 403, 468]) {

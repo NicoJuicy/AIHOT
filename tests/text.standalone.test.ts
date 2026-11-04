@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { looksZh } from "@aihot/backend/editorial/writing";
-import { isChineseBody, exportTranslation } from "@aihot/backend/publication/items";
+import { looksEnglish } from "@aihot/backend/editorial/writing";
+import { isEnglishBody, exportTranslation } from "@aihot/backend/publication/items";
 import { stripTags } from "@aihot/backend/lib/text";
 
 // Regression coverage for HTML attributes that contain `>` in real source pages.
@@ -50,16 +50,16 @@ test("stripTags decodes character references, also when a feed escaped them twic
   assert.equal(stripTags("?a=1&copy=2 &unknown; AT&T"), "?a=1&copy=2 &unknown; AT&T");
 });
 
-test("writing and public reading agree about Chinese, including Japanese with kanji", () => {
-  for (const body_text of ["新しい人工知能モデルを公開しました。", "人工知能 모델을 공개했습니다."]) {
-    assert.equal(looksZh(body_text), false);
-    for (const language of [null, "ja", "ko"]) {
-      assert.equal(isChineseBody({ language, body_text }), false);
-      assert.equal(exportTranslation({ language, body_text, tr_html: "<p>发布了新模型。</p>", tr_complete: true }), "<p>发布了新模型。</p>");
+test("writing and public reading agree about English, including other languages in Latin letters", () => {
+  for (const body_text of ["Новая модель искусственного интеллекта выпущена.", "Le nouveau modèle de Mistral est disponible pour les développeurs.", "Die neue Version ist ab heute für alle verfügbar."]) {
+    assert.equal(looksEnglish(body_text), false);
+    for (const language of [null, "ru", "fr"]) {
+      assert.equal(isEnglishBody({ language, body_text }), false);
+      assert.equal(exportTranslation({ language, body_text, tr_html: "<p>A new model was released.</p>", tr_complete: true }), "<p>A new model was released.</p>");
     }
   }
-  assert.equal(isChineseBody({ language: "ja", body_text: "人工知能研究開発" }), false);
-  assert.equal(isChineseBody({ language: null, body_text: "新的人工智能模型发布了。" }), true);
-  assert.equal(isChineseBody({ language: "zh-Hans", body_text: "API" }), true);
-  assert.equal(isChineseBody({ language: "en", body_text: "An English article quoting 人工智能." }), false);
+  assert.equal(isEnglishBody({ language: "fr", body_text: "The model is available today." }), false);
+  assert.equal(isEnglishBody({ language: null, body_text: "The new model is available to every developer from today." }), true);
+  assert.equal(isEnglishBody({ language: "en-US", body_text: "API" }), true);
+  assert.equal(isEnglishBody({ language: "en", body_text: "An English article quoting искусственный интеллект." }), true);
 });

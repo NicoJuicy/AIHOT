@@ -130,7 +130,7 @@ export async function runBackup(now = new Date()) {
   }
   const out: Array<{ key: string; bytes: number; sha256: string }> = [];
   const today = beijingDate(now);
-  const prefix = today.endsWith("-01") ? "monthly" : beijingWeekday(today) === "星期日" ? "weekly" : "daily";
+  const prefix = today.endsWith("-01") ? "monthly" : beijingWeekday(today) === "Sunday" ? "weekly" : "daily";
   for (const file of kept.length && !filesError ? [dump, files] : [dump]) {
     const size = (await stat(file)).size;
     const sha = await fileSha256(file);

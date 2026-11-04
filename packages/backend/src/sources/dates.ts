@@ -9,9 +9,9 @@ export function articleUtcOffset(config: SourceRow["config"]): string | undefine
 
 /**
  * A time followed by its zone: "10:00Z", "10:00:00+08:00", "10:00:00 +0000", "10:00 PM GMT", "10:00 EST".
- * CST is no zone here: Date.parse reads US Central, Chinese pages mean China, so it is read in the source's offset.
+ * The US abbreviations (EST, CDT, PST …) are read as Date.parse reads them, CST as US Central.
  */
-const EXPLICIT_ZONE = /\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(?:[AP]M\s*)?(?:Z|[+-]\d{2}:?\d{2}|GMT|UTC?|[EMP][SD]T|CDT)\b/i;
+const EXPLICIT_ZONE = /\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(?:[AP]M\s*)?(?:Z|[+-]\d{2}:?\d{2}|GMT|UTC?|[ECMP][SD]T)\b/i;
 
 function calendarDay(y: string | number, mo: string | number, d: string | number): boolean {
   const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
@@ -37,7 +37,7 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
   if (!v) return null;
   const compact = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(v);
   if (compact) return atOffset(compact[1]!, compact[2]!, compact[3]!, compact[4]!, compact[5]!, compact[6]!, utcOffset);
-  const yearFirst = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:(?:T|\s*)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
+  const yearFirst = /(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:(?:T|\s*)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
   const monthFirst = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})(?:(?:T|\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(v);
   const numeric = yearFirst ?? monthFirst?.map((part, i, match) => i === 1 ? match[3]! : i === 2 ? match[1]! : i === 3 ? match[2]! : part);
   if (numeric && !calendarDay(numeric[1]!, numeric[2]!, numeric[3]!)) return null;
@@ -55,7 +55,7 @@ export function parseLooseDate(value: string | null | undefined, utcOffset = "+0
     if (Number.isFinite(direct)) return new Date(direct);
     if (!numeric) return null;
   }
-  // 2026-09-26 / 2026/09/26 / 2026-09-26T10:00 / 2026年9月26日 (+ optional time), interpreted in the given offset.
+  // 2026-09-26 / 2026/09/26 / 2026-09-26T10:00 / 2026.09.26 (+ optional time), interpreted in the given offset.
   const m = numeric;
   if (m) {
     const [, y, mo, d, h = "00", mi = "00", s = "00"] = m;
@@ -89,14 +89,14 @@ export function readPublicationDate(value: string | null | undefined, utcOffset 
 
 /** Legacy timestamps have lost their source precision; midnight never tells us which it was. */
 export function describePublicationTime(at: Date | null, source: string | null | undefined): string {
-  if (!at) return "未知";
-  if (!source) return `${beijingDate(at)} ${beijingTime(at)}（历史记录，原始精度未知）`;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(source)) return `${source}（原文仅有日期，时刻未知）`;
-  return `${beijingDate(at)} ${beijingTime(at)}（北京时间）`;
+  if (!at) return "unknown";
+  if (!source) return `${beijingDate(at)} ${beijingTime(at)} (historical record; original precision unknown)`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(source)) return `${source} (date only in source; time unknown)`;
+  return `${beijingDate(at)} ${beijingTime(at)} (Beijing time)`;
 }
 
-const RELATIVE_UNITS: Record<string, number> = { 秒: 1e3, 分钟: 60e3, 分: 60e3, 小时: 3600e3, 天: 86400e3, second: 1e3, minute: 60e3, min: 60e3, m: 60e3, hour: 3600e3, hr: 3600e3, h: 3600e3, day: 86400e3, d: 86400e3 };
-const DAYS_BACK: Record<string, number> = { 今天: 0, 昨天: 1, 前天: 2, yesterday: 1 };
+const RELATIVE_UNITS: Record<string, number> = { second: 1e3, minute: 60e3, min: 60e3, m: 60e3, hour: 3600e3, hr: 3600e3, h: 3600e3, day: 86400e3, d: 86400e3 };
+const DAYS_BACK: Record<string, number> = { today: 0, yesterday: 1 };
 
 /** The calendar day `at` falls on in the given offset, as YYYY-MM-DD. */
 function dayAt(at: Date, utcOffset: string): string {
@@ -105,35 +105,35 @@ function dayAt(at: Date, utcOffset: string): string {
 }
 
 /**
- * A page's own element printing an age instead of a date ("20小时前", "2天前", "昨天", "今天 15:46", "3 hours ago",
- * "16h ago"), counted back from `now`, the moment it was read. Only the whole text of a date rule's element is read
- * this way, after a byline that leads it ("版面之外·今天 15:46"): a sentence that mentions "两天前" is no date. Some
- * listing pages print the age for an article's first days and the date only after, so every new article came in
- * undated and missed that day's news. Hours and minutes keep a time, however many; days keep the calendar day in the
- * source's offset, and "今天/昨天/前天 HH:MM" is that time on that day there.
+ * A page's own element printing an age instead of a date ("3 hours ago", "16h ago", "2 days ago", "yesterday",
+ * "today 15:46"), counted back from `now`, the moment it was read. Only the whole text of a date rule's element is
+ * read this way, after a byline that leads it ("Jane Doe · 3 hours ago"): a sentence that mentions "two days ago" is
+ * no date. Some listing pages print the age for an article's first days and the date only after, so every new
+ * article came in undated and missed that day's news. Hours and minutes keep a time, however many; days keep the
+ * calendar day in the source's offset, and "today/yesterday HH:MM" is that time on that day there.
  */
 export function readRelativeDate(value: string | null | undefined, now: Date, utcOffset = "+08:00"): PublicationDate {
   const v = collapse(value).replace(/^[^·]+·\s*/, "");
   const none = { publishedAt: null, publicationTime: null };
   if (!v) return none;
-  const dayTime = /^(今天|昨天|前天)\s*(\d{1,2}):(\d{2})$/.exec(v);
+  const dayTime = /^(today|yesterday)\s+(\d{1,2}):(\d{2})$/i.exec(v);
   if (dayTime) {
-    const day = dayAt(new Date(now.getTime() - DAYS_BACK[dayTime[1]!]! * 86400e3), utcOffset);
+    const day = dayAt(new Date(now.getTime() - DAYS_BACK[dayTime[1]!.toLowerCase()]! * 86400e3), utcOffset);
     const at = atOffset(day.slice(0, 4), day.slice(5, 7), day.slice(8, 10), dayTime[2]!, dayTime[3]!, 0, utcOffset);
     return at ? { publishedAt: at, publicationTime: at.toISOString() } : none;
   }
   let ms: number | null = null;
   let unitMs = 0;
-  if (/^(刚刚|just now)$/i.test(v)) ms = 0;
-  else if (/^(昨天|前天|yesterday)$/i.test(v)) [ms, unitMs] = [DAYS_BACK[v.toLowerCase()]! * 86400e3, 86400e3];
+  if (/^just now$/i.test(v)) ms = 0;
+  else if (/^yesterday$/i.test(v)) [ms, unitMs] = [86400e3, 86400e3];
   else {
-    const m = /^(\d{1,3})\s*(秒|分钟|分|小时|天)前$/.exec(v) ?? /^(\d{1,3})\s*(?:(second|minute|min|hour|hr|day)s?|(m|h|d))\s+ago$/i.exec(v);
+    const m = /^(\d{1,3})\s*(?:(second|minute|min|hour|hr|day)s?|(m|h|d))\s+ago$/i.exec(v);
     const name = (m?.[2] ?? m?.[3])?.toLowerCase();
     if (m && name) [ms, unitMs] = [Number(m[1]) * RELATIVE_UNITS[name]!, RELATIVE_UNITS[name]!];
   }
   if (ms === null) return none;
   const at = new Date(now.getTime() - ms);
-  // The text's own unit sets the precision: "47小时前" keeps its time, though it is more than a day back.
+  // The text's own unit sets the precision: "47 hours ago" keeps its time, though it is more than a day back.
   if (unitMs < 86400e3) return { publishedAt: at, publicationTime: at.toISOString() };
   const day = dayAt(at, utcOffset);
   return { publishedAt: atOffset(day.slice(0, 4), day.slice(5, 7), day.slice(8, 10), 0, 0, 0, utcOffset), publicationTime: day };

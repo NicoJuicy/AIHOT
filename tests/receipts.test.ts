@@ -47,8 +47,8 @@ test("429 distinguishes documented spending refusals from request and token rate
     ["llm", { error: { code: "organization_spend_limit_exceeded" } }, "refused"],
     ["llm", { error: { code: "project_spend_limit_exceeded" } }, "refused"],
     ["mimo", { error: { message: "Insufficient balance" } }, "refused"],
-    ["zhipu", { error: { code: "1302", message: "请求频率过高" } }, "outage"],
-    ["zhipu", { error: { code: "1305", message: "服务暂时不可用" } }, "outage"],
+    ["zhipu", { error: { code: "1302", message: "Request rate too high" } }, "outage"],
+    ["zhipu", { error: { code: "1305", message: "Service temporarily unavailable" } }, "outage"],
     ["dashscope", { error: { code: "insufficient_quota", message: "You exceeded your current quota, please check your plan and billing details." } }, "outage"],
     ["dashscope", { code: "Throttling.AllocationQuota", message: "Allocated quota exceeded, please increase your quota limit." }, "outage"],
     ["dashscope", { code: "Throttling.RateQuota", message: "Requests rate limit exceeded, please try again later." }, "outage"],
@@ -70,7 +70,7 @@ test("429 distinguishes documented spending refusals from request and token rate
 test("the migrations seed a budget for every paid service", async () => {
   const rows = await sql<{ service: string }[]>`SELECT service FROM budgets`;
   const services = new Set(rows.map((r) => r.service));
-  for (const s of ["jina", "socialdata", "dajiala", "zhipu", "deepseek", "mimo", "dashscope"]) assert.ok(services.has(s), `no budget for ${s}`);
+  for (const s of ["jina", "socialdata", "zhipu", "deepseek", "mimo", "dashscope"]) assert.ok(services.has(s), `no budget for ${s}`);
 });
 
 test("an answer already received is reused instead of bought again", async () => {

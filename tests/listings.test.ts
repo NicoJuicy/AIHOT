@@ -28,23 +28,23 @@ const feeds: Record<string, string> = {
 };
 // A feed that loses a character here and there on every load, sent as two or three U+FFFD, in titles and
 // in descriptions longer than the excerpt kept from them.
-const story = "9月25日，维多利亚的秘密上海淮海旗舰店开业，这是维密在中国市场运营十周年之际对线下门店的一次重新布局。".repeat(50);
+const story = "On September 25, Victoria's Secret opened its Huaihai Road flagship in Shanghai, a reshuffle of its stores as it marks ten years in China. ".repeat(50);
 const lose = (s: string, at: number, n: number) => s.slice(0, at) + "\uFFFD".repeat(n) + s.slice(at + 1);
-const title = `维密重回上海淮海路，中国市场进入扩店阶段 ${T}`;
+const title = `Victoria's Secret returns to Huaihai Road as its China business expands ${T}`;
 const garbledLoads = [[title, story], [title, lose(story, 120, 3)], [lose(title, 2, 2), lose(story, 700, 2)]];
 let garbledLoad = 0;
-// A trimmed copy of the DeepSeek API changelog (Docusaurus): each date heading, in either of the two
-// label styles the page uses, is followed by the update headings that belong to it.
+// A trimmed copy of the DeepSeek API changelog (Docusaurus): each date heading, labelled or bare, is
+// followed by the update headings that belong to it.
 const heading = (level: number, id: string, text: string) =>
-  `<h${level} class="anchor" id="${id}">${text}<a href="#${id}" class="hash-link" title="${text}的直接链接">\u200b</a></h${level}>`;
-const changelog = `<!doctype html><html><body><article><div class="theme-doc-markdown markdown"><div class="row"><div class="col"><h1>更新日志</h1><hr>
-${heading(2, "时间-2026-09-10", "时间: 2026-09-10")}
-${heading(3, "deepseek-v41-flash-发布", `DeepSeek-V4.1-Flash 发布 ${T}`)}<p>今天，我们正式发布 DeepSeek-V4.1-Flash 模型。</p>
-${heading(2, "时间-2025-12-01", "时间: 2025-12-01")}
-${heading(3, "deepseek-v32", `DeepSeek-V3.2 ${T}`)}<p>DeepSeek-V3.2 正式版上线。</p>
-${heading(3, "deepseek-v32-speciale", `DeepSeek-V3.2-Speciale ${T}`)}<p>DeepSeek-V3.2-Speciale 临时接口上线。</p>
-${heading(2, "时间2024-05-17", "时间：2024-05-17")}
-${heading(3, "deepseek-chat-4", `deepseek-chat ${T}`)}<p>deepseek-chat 模型升级为 DeepSeek-V2-0517。</p>
+  `<h${level} class="anchor" id="${id}">${text}<a href="#${id}" class="hash-link" title="Direct link to ${text}">\u200b</a></h${level}>`;
+const changelog = `<!doctype html><html><body><article><div class="theme-doc-markdown markdown"><div class="row"><div class="col"><h1>Change Log</h1><hr>
+${heading(2, "date-2026-09-10", "Date: 2026-09-10")}
+${heading(3, "deepseek-v41-flash-release", `DeepSeek-V4.1-Flash Release ${T}`)}<p>Today we officially release the DeepSeek-V4.1-Flash model.</p>
+${heading(2, "date-2025-12-01", "Date: 2025-12-01")}
+${heading(3, "deepseek-v32", `DeepSeek-V3.2 ${T}`)}<p>The official DeepSeek-V3.2 release is live.</p>
+${heading(3, "deepseek-v32-speciale", `DeepSeek-V3.2-Speciale ${T}`)}<p>A temporary DeepSeek-V3.2-Speciale endpoint is live.</p>
+${heading(2, "2024-05-17", "2024-05-17")}
+${heading(3, "deepseek-chat-4", `deepseek-chat ${T}`)}<p>The deepseek-chat model is upgraded to DeepSeek-V2-0517.</p>
 </div></div></div></article></body></html>`;
 const server = http.createServer((req, res) => {
   if (req.url === "/updates/") {
@@ -111,7 +111,7 @@ test("a changelog's date headings date its updates and are no articles themselve
   assert.deepEqual(
     rows.map((r) => [decodeURIComponent(r.url.replace(/^.*#/, "#")), r.title.replace(` ${T}`, ""), r.published_at?.toISOString()]),
     [
-      ["#deepseek-v41-flash-发布", "DeepSeek-V4.1-Flash 发布", "2026-09-09T16:00:00.000Z"],
+      ["#deepseek-v41-flash-release", "DeepSeek-V4.1-Flash Release", "2026-09-09T16:00:00.000Z"],
       ["#deepseek-v32", "DeepSeek-V3.2", "2025-11-30T16:00:00.000Z"],
       ["#deepseek-v32-speciale", "DeepSeek-V3.2-Speciale", "2025-11-30T16:00:00.000Z"],
       ["#deepseek-chat-4", "deepseek-chat", "2024-05-16T16:00:00.000Z"],

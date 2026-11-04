@@ -1,8 +1,8 @@
 import { beijingDate, beijingTime, beijingWeekday, monthDay as engineMonthDay } from "@aihot/contracts/time";
 
 /**
- * "9月28日" of a calendar date (YYYY-MM-DD). A day of another year than `now` (Beijing) carries its year, so an
- * archived item is not read as this year's: "2019年2月19日". The engine's monthDay does this only when given today.
+ * "Sep 28" of a calendar date (YYYY-MM-DD). A day of another year than `now` (Beijing) carries its year, so an
+ * archived item is not read as this year's: "Feb 19, 2019". The engine's monthDay does this only when given today.
  */
 export function monthDay(date: string, now: number = Date.now()): string {
   return engineMonthDay(date, beijingDate(now));
@@ -20,21 +20,21 @@ export function byBeijingDay<T>(list: readonly T[], at: (entry: T) => string): A
   return days;
 }
 
-/** "周六" of a calendar date (YYYY-MM-DD). */
+/** "Sat" of a calendar date (YYYY-MM-DD). */
 export function weekdayShort(date: string): string {
-  return beijingWeekday(date).replace("星期", "周");
+  return beijingWeekday(date).slice(0, 3);
 }
 
 export function relativeTime(iso: string, now = Date.now()): string {
   const t = Date.parse(iso);
   const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 60) return "刚刚";
+  if (s < 60) return "just now";
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} 分钟前`;
+  if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} 小时前`;
+  if (h < 24) return `${h} h ago`;
   const d = Math.round(h / 24);
-  if (d < 30) return `${d} 天前`;
+  if (d < 30) return `${d} ${d === 1 ? "day" : "days"} ago`;
   return beijingDate(iso);
 }
 
@@ -42,7 +42,7 @@ export function fullDateTime(iso: string): string {
   return `${beijingDate(iso)} ${beijingTime(iso)}`;
 }
 
-/** "9月24日 10:51" (Beijing), for lists that span days. */
+/** "Sep 24 10:51" (Beijing), for lists that span days. */
 export function monthDayTime(iso: string): string {
   return `${monthDay(beijingDate(iso))} ${beijingTime(iso)}`;
 }

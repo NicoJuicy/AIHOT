@@ -28,7 +28,7 @@ test("MCP accepts a JSON body at its byte limit and refuses one byte over before
 });
 
 test("MCP bounds UTF-8 bytes rather than JavaScript string length", async () => {
-  const payload = initialize("字".repeat(90_000));
+  const payload = initialize("€".repeat(90_000));
   assert.ok(payload.length < LIMIT && Buffer.byteLength(payload) > LIMIT);
   const response = await app.inject({ method: "POST", url: "/api/mcp", headers, payload });
   assert.equal(response.statusCode, 413);

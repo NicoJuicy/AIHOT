@@ -1,4 +1,4 @@
-// Full-text Chinese translations: made by the worker after an item
+// Full-text English translations: made by the worker after an item
 // is selected, for sources whose full text may be shown on the site; a page read never translates.
 // Bodies are translated block by block (paragraphs, headings, list items, captions, table cells) so the
 // sanitised structure stays as it is. Inside a block, images and inline code never reach the model
@@ -15,7 +15,7 @@ import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
 import { rebaseTranslation } from "../content/presentation.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt, failureKind, ProviderRejectedError, rejectReceivedResponse } from "../providers/receipts.ts";
-import { collapseWhitespace, isChineseText } from "../lib/text.ts";
+import { collapseWhitespace, isEnglishText } from "../lib/text.ts";
 import { isEmptyOrLinkOnly } from "../content/posts.ts";
 import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
@@ -27,7 +27,7 @@ export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "transla
 const BATCH_CHARS = 3500;
 /** Longer bodies get their first part translated and are marked incomplete. */
 const MAX_CHARS = 60_000;
-/** X posts shorter than this carry their meaning in the Chinese title and summary. */
+/** X posts shorter than this carry their meaning in the English title and summary. */
 const X_MIN_CHARS = 60;
 
 const BLOCK = new Set(["p", "h2", "h3", "h4", "h5", "li", "blockquote", "figcaption", "td", "th", "dt", "dd", "caption"]);
@@ -194,7 +194,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
     if (isEmptyOrLinkOnly(text)) return result({ status: "skipped", reason: "no text to translate" });
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
-    if (isChineseText(text, row.language)) return result({ status: "skipped", reason: "already Chinese" });
+    if (isEnglishText(text, row.language)) return result({ status: "skipped", reason: "already English" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
     const translated = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
     const [t] = translated.translations;
@@ -203,7 +203,7 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
     return result({ status: "translated", segments: 1 });
   }
 
-  if (!row.body_html || isChineseText(row.body_text ?? "", row.language)) return result({ status: "skipped", reason: "no foreign-language body" });
+  if (!row.body_html || isEnglishText(row.body_text ?? "", row.language)) return result({ status: "skipped", reason: "no foreign-language body" });
   const $ = cheerio.load(row.body_html, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
@@ -282,10 +282,10 @@ export async function importBodyTranslation(input: { articleId: string; sourceHt
   await store(input.articleId, row.revision, input.title, clean, text, input.complete, [], input.sourceHtml, true);
 }
 
-/** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */
+/** A quoted post worth translating: at least a few letters beyond its links, and not already English. */
 function quoteTranslatable(text: string): boolean {
   const words = collapseWhitespace(text.replace(/https?:\/\/\S+/g, " "));
-  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !isChineseText(words);
+  return words.length >= 10 && (words.match(/\p{L}/gu) ?? []).length >= 2 && !isEnglishText(words);
 }
 
 /**
@@ -375,11 +375,11 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
       AND (tr.article_id IS NULL OR (tr.origin <> 'source' AND tr.revision < a.revision))
       AND NOT EXISTS (SELECT 1 FROM translation_attempts t WHERE t.article_id = p.article_id AND t.revision = a.revision
                       AND (t.outcome IN ('translated', 'partial') OR t.attempts >= 3
-                        OR (t.outcome='skipped' AND t.reason NOT IN ('already Chinese','no foreign-language body'))))
+                        OR (t.outcome='skipped' AND t.reason NOT IN ('already English','no foreign-language body'))))
     ORDER BY p.discovered_at DESC`;
-  // Reconsider language skips with the shared rule. Filter before taking the batch so Chinese
+  // Reconsider language skips with the shared rule. Filter before taking the batch so English
   // originals do not occupy every slot and starve foreign-language bodies behind them.
-  const rows = pending.filter(row => !isChineseText(row.text ?? "", row.language)).slice(0, opts.limit ?? 30);
+  const rows = pending.filter(row => !isEnglishText(row.text ?? "", row.language)).slice(0, opts.limit ?? 30);
   const done: TranslateResult[] = [];
   for (const r of rows) {
     if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) break;

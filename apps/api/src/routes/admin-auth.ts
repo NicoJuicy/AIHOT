@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { safeReturn, SIGN_IN_HOME, type AdminMe } from "@aihot/contracts/admin";
 import { SITE } from "@aihot/site";
 import { config } from "@aihot/backend/config";
+import { HttpStatusError } from "@aihot/backend/lib/http-fetch";
 import {
   completeLogin,
   cookie,
@@ -64,12 +65,17 @@ export function adminHandler(fn: AdminHandler) {
       return await fn(req, reply, admin);
     } catch (error) {
       if (error instanceof ZodError) {
-        return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: error.issues.map((issue) => `${issue.path.join(".") || "请求"}: ${issue.message}`).join("; ").slice(0, 300) });
+        return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join("; ").slice(0, 300) });
       }
       if ((error as { statusCode?: number }).statusCode === 400 || error instanceof SyntaxError) {
         return sendProblem(req, reply, { status: 400, code: "invalid_request", detail: String((error as Error).message).slice(0, 300) });
       }
       if ((error as { code?: string }).code === "conflict") return sendProblem(req, reply, { status: 409, code: "conflict", detail: (error as Error).message });
+      // A source or provider refusing the request is its answer, not a fault here (e.g. a preview of a feed that blocks crawlers).
+      if (error instanceof HttpStatusError) {
+        req.log.warn({ err: error, path: req.url.split("?")[0] }, "admin upstream refused");
+        return sendProblem(req, reply, { status: 502, code: "upstream_error", title: "Bad gateway", detail: `The remote site refused the request (${error.message}).` });
+      }
       req.log.error({ err: error, path: req.url.split("?")[0] }, "admin api error");
       return sendProblem(req, reply, { status: 500, code: "internal_error", detail: String((error as Error).message).slice(0, 300) });
     }
@@ -140,9 +146,9 @@ export function registerAdminAuth(app: FastifyInstance) {
       reply.header("Set-Cookie", [cookie(SESSION_COOKIE, token, SESSION_DAYS * 86400, secure(req)), cookie(STATE_COOKIE, "", 0, secure(req))]);
       return reply.redirect(returnTo, 302);
     } catch (error) {
-      const message = error instanceof LoginRejected ? error.message : "登录失败，请稍后再试";
+      const message = error instanceof LoginRejected ? error.message : "Sign-in failed; please try again later";
       if (!(error instanceof LoginRejected)) req.log.error({ err: error }, "admin login failed");
-      return reply.code(403).type("text/html; charset=utf-8").send(`<!doctype html><meta charset="utf-8"><title>登录失败 · ${SITE.name}</title><p style="font:16px system-ui;padding:40px">${message}。<a href="/api/auth/login">重新登录</a></p>`);
+      return reply.code(403).type("text/html; charset=utf-8").send(`<!doctype html><meta charset="utf-8"><title>Sign-in failed · ${SITE.name}</title><p style="font:16px system-ui;padding:40px">${message}. <a href="/api/auth/login">Sign in again</a></p>`);
     }
   });
 

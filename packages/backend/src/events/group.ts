@@ -85,12 +85,12 @@ function participantKey(source: { id: string; signal_group_id: string | null }):
 
 // Judgement
 
-const NO_SELECTED_COVERAGE: SelectionValue = { addsValue: true, reason: "没有已公开精选的相关报道" };
+const NO_SELECTED_COVERAGE: SelectionValue = { addsValue: true, reason: "no related coverage already public in the picks" };
 
 async function judgeBatch(articleId: string, query: ReportView, cands: CandidateView[], reading: ReadingContext[]): Promise<{ verdicts: Map<number, Verdict>; selection: SelectionValue; receiptId: number }> {
   const res = await chatJson({
     ...await modelRoute("group"), purpose: "group_article", subject: `article:${articleId}`, promptVersion: BATCH_PROMPT_VERSION,
-    system: BATCH_SYSTEM, user: batchUser(query, cands, "新报道", reading), schema: BatchSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 400 + 120 * cands.length,
+    system: BATCH_SYSTEM, user: batchUser(query, cands, "New report", reading), schema: BatchSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 400 + 120 * cands.length,
   });
   return { verdicts: verdictsByFact(res.data.decisions, cands), selection: cands.some(c => c.selected) || reading.length ? res.data.selection : NO_SELECTED_COVERAGE, receiptId: res.receiptId };
 }
@@ -107,7 +107,7 @@ async function confirmMerge(articleId: string, query: ReportView, cand: Candidat
 async function judgeSignal(articleId: string, query: ReportView, cands: CandidateView[]): Promise<{ verdicts: Map<number, Verdict>; receiptId: number }> {
   const res = await chatJson({
     ...await modelRoute("group"), purpose: "group_signal", subject: `article:${articleId}`, promptVersion: RELATE_PROMPT_VERSION,
-    system: SIGNAL_SYSTEM, user: batchUser(query, cands, "帖子"), schema: SignalSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 150 + 60 * cands.length,
+    system: SIGNAL_SYSTEM, user: batchUser(query, cands, "Post"), schema: SignalSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 150 + 60 * cands.length,
   });
   return { verdicts: verdictsByFact(res.data.decisions, cands), receiptId: res.receiptId };
 }
@@ -124,7 +124,7 @@ async function createStory(db: Db, title: string, at: Date): Promise<number> {
 async function createFact(db: Db, storyId: number, title: string, frame: Record<string, any> | null, at: Date): Promise<number> {
   let occurred = typeof frame?.occurredAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(frame.occurredAt) ? beijingMidnight(frame.occurredAt) : null;
   if (occurred && (!Number.isFinite(+occurred) || beijingDate(occurred) !== frame!.occurredAt)) occurred = null;
-  const conditions = Array.isArray(frame?.conditions) ? frame.conditions.map((c: { text?: string }) => c.text).filter(Boolean).join("；") || null : null;
+  const conditions = Array.isArray(frame?.conditions) ? frame.conditions.map((c: { text?: string }) => c.text).filter(Boolean).join("; ") || null : null;
   const [row] = await db<{ id: number }[]>`
     INSERT INTO facts (public_id, story_id, title, subject, action, object, conditions, occurred_at, created_at)
     VALUES (${`f${newShortId(8)}`}, ${storyId}, ${title}, ${frame?.subject ?? null}, ${frame?.action ?? null}, ${frame?.object ?? null}, ${conditions}, ${occurred}, ${at})
@@ -196,7 +196,7 @@ async function redirectEmptiedStories(articleId: string, storyId: number): Promi
       AND NOT EXISTS (SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id WHERE f.story_id = st.id AND fa.role IN ('primary', 'report'))`;
   const redirected: number[] = [];
   for (const { id } of emptied) {
-    if (await mergeStoryInto(Number(id), storyId, `报道已全部移走，旧地址跳到报道所在事件（最后一篇 ${articleId}）`, "grouping")) redirected.push(Number(id));
+    if (await mergeStoryInto(Number(id), storyId, `all reports moved out; the old address redirects to the story they are in (last report ${articleId})`, "grouping")) redirected.push(Number(id));
   }
   return redirected;
 }
@@ -303,7 +303,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   // Manual decisions win over any model decision: a manual membership, or "keep standalone".
   const manual = await manualDecision(sql, articleId);
   if (manual) {
-    await markGrouped(articleId, a.revision, { addsValue: true, reason: "人工确认的归属" });
+    await markGrouped(articleId, a.revision, { addsValue: true, reason: "grouping confirmed by hand" });
     return { verdict: "manual", factId: manual.factId };
   }
   const [an] = await sql<{ input_revision: number; relevance: string | null; title_zh: string | null; summary_zh: string | null; output: Record<string, any> | null; composite: boolean }[]>`
@@ -344,7 +344,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   // History founds no event and adds no heat (isHistorical); a regroup takes it out of any it joined.
   // It comes back at its own date, next to the card that told it when it was news.
   if (historical) {
-    const faced = await faceCards({ addsValue: true, reason: "历史资料按原文时间归档" });
+    const faced = await faceCards({ addsValue: true, reason: "historical material filed under its original time" });
     await markGrouped(articleId, a.revision, faced.selection);
     return { verdict: "historical", replaces };
   }
@@ -353,7 +353,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
 
   // Explicitly insufficient material supplies no event identity. A missing (older) scope is separate.
   if (unsupported) {
-    await markGrouped(articleId, a.revision, { addsValue: false, reason: "材料不足以确认当前消息" });
+    await markGrouped(articleId, a.revision, { addsValue: false, reason: "not enough material to confirm the current news" });
     return { verdict: "standalone" };
   }
 
@@ -370,7 +370,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
 
   const frame = (an?.output?.fact ?? null) as Record<string, any> | null;
   if (!an || an.relevance !== "pass") {
-    await markGrouped(articleId, a.revision, { addsValue: false, reason: "未通过内容分析" });
+    await markGrouped(articleId, a.revision, { addsValue: false, reason: "did not pass content analysis" });
     return { verdict: "standalone" };
   }
   const title = an.title_zh || a.title;
@@ -379,7 +379,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     scope: composite ? "composite" : an.output?.scope === "single" ? "single" : "unknown",
     frame: frame ? { subject: frame.subject, action: frame.action, object: frame.object, occurredAt: frame.occurredAt } : null,
   };
-  const newTitle = String(frame?.title || title).slice(0, 60);
+  const newTitle = String(frame?.title || title).slice(0, 180);
 
   const { sameUrl, referenced } = await relatedPosts(a);
   // The URL settles identity, but an unseen fact still needs its first reading-value decision.
@@ -429,13 +429,13 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   }
   if (kept) {
     // A sibling already selected for this same fact still permits representative replacement.
-    if (cands.some(c => c.factId === kept.factId && c.selected)) selection = { addsValue: true, reason: "同一新闻的代表报道候选" };
+    if (cands.some(c => c.factId === kept.factId && c.selected)) selection = { addsValue: true, reason: "candidate to represent the same news" };
     // A revision keeps its fact, so it does not fold: it faces the cards again and can only stay out.
     selection = (await faceCards(selection, kept.factId)).selection;
     const late = await sql.begin(async tx => {
       await lockCurrentRevision(tx, articleId, a.revision);
       const manual = await manualDecision(tx, articleId);
-      await markGrouped(articleId, a.revision, manual ? { addsValue: true, reason: "人工确认的归属" } : selection, tx);
+      await markGrouped(articleId, a.revision, manual ? { addsValue: true, reason: "grouping confirmed by hand" } : selection, tx);
       if (!manual) await recordDecision(tx, articleId, kept.factId, kept.storyId, "kept",
         cands.map(c => ({ id: c.factId, score: c.score, ...verdicts.get(c.factId) })), receipts[0] ?? null);
       for (const receiptId of receipts) await completeReceipt(tx, receiptId);
@@ -491,7 +491,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
   // Only a fact already shown in selected has a representative slot to replace. A duplicate of
   // an unselected fact must retain the value judgement, including a prior low-increment rejection.
   if ((verdict === "same-fact" || verdict === "same-url") && (selectedSameUrl || cands.some(c => c.factId === factId && c.selected))) {
-    selection = { addsValue: true, reason: "同一新闻的代表报道候选" };
+    selection = { addsValue: true, reason: "candidate to represent the same news" };
   }
 
   // About to open a card: the news may already be on one, whatever the candidates above were called.
@@ -503,13 +503,13 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     const card = faced.into;
     if (factId) {
       const from: number = factId;
-      const merged = await mergeFactInto(from, card.fact_id, `同一条新闻，并入读者已看到的卡片（报道 ${articleId}）`, "grouping");
+      const merged = await mergeFactInto(from, card.fact_id, `same news, merged into the card readers have already seen (report ${articleId})`, "grouping");
       absorbed = merged && { from, moved: merged.moved };
     }
     factId = card.fact_id;
     storyId = card.story_id;
     verdict = "same-card";
-    selection = { addsValue: true, reason: "同一新闻的代表报道候选" };
+    selection = { addsValue: true, reason: "candidate to represent the same news" };
     decisionCandidates.push({ id: card.fact_id, score: Math.round(card.score * 1000) / 1000, relation: "SAME_OCCURRENCE", confidence: 1 });
   } else selection = faced.selection;
 
@@ -519,7 +519,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     await lockCurrentRevision(tx, articleId, a.revision);
     const late = await manualDecision(tx, articleId);
     if (late) {
-      await markGrouped(articleId, a.revision, { addsValue: true, reason: "人工确认的归属" }, tx);
+      await markGrouped(articleId, a.revision, { addsValue: true, reason: "grouping confirmed by hand" }, tx);
       for (const id of receipts) await completeReceipt(tx, id);
       return { manual: late, factId: null, storyId: null };
     }

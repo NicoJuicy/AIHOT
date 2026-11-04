@@ -507,10 +507,10 @@ export async function extractFromUrl(url: string, subject: string, rules: PageRu
 
 /** Ordinary article pages; player pages have no article body, and social posts arrive separately. */
 export function pageFetchable(url: string, sourceKind: string): boolean {
-  if (sourceKind === "x_search" || sourceKind === "mp_account" || isVideoPageUrl(url)) return false;
+  if (sourceKind === "x_search" || isVideoPageUrl(url)) return false;
   try {
     const u = new URL(url);
-    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com|mp\.weixin\.qq\.com)$/i.test(u.hostname);
+    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com)$/i.test(u.hostname);
   } catch {
     return false;
   }

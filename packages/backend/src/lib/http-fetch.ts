@@ -15,7 +15,7 @@ import { DEPLOYMENT, SITE } from "@aihot/site";
  * hosts, are connected here instead, so the
  * connect-time address check still applies. A name sent through the proxy is resolved through it too
  * (egress-proxy.ts), and the tunnel goes to the checked address. "direct" is for paid APIs called
- * straight (SocialData, Dajiala) and the site's own addresses. A listing fetch from a host in
+ * straight (SocialData) and the site's own addresses. A listing fetch from a host in
  * PRIVATE_FEED_HOSTS is connected directly too.
  */
 export type EgressRoute = "egress" | "direct";
@@ -140,8 +140,11 @@ export function requireOk(res: GuardedResponse, what?: string): GuardedResponse 
   return res;
 }
 
-/** How the collectors introduce themselves: the site's own crawler name and address (site/site.ts). */
-export const DEFAULT_UA = `Mozilla/5.0 (compatible; ${SITE.crawlerName}; +${config.siteUrl}/about)`;
+/**
+ * How the collectors introduce themselves: the site's own crawler name and address (site/site.ts), or
+ * CRAWLER_USER_AGENT. Some sites refuse this form with a localhost address (Hacker News answers 419).
+ */
+export const DEFAULT_UA = config.crawlerUserAgent ?? `Mozilla/5.0 (compatible; ${SITE.crawlerName}; +${config.siteUrl}/about)`;
 
 /** The language a source asked for (its config.acceptLanguage), replacing the default preference above. */
 export const languageHeaders = (language: string | undefined): Record<string, string> => language ? { "accept-language": language } : {};
@@ -158,7 +161,7 @@ export async function guardedFetch(input: string, opts: GuardedFetchOptions = {}
   let url = await check(input);
   const maxRedirects = opts.maxRedirects ?? 5;
   const maxBytes = opts.maxBytes ?? 8 * 1024 * 1024;
-  const headers = new Headers({ "user-agent": DEFAULT_UA, "accept-language": "zh-CN,zh;q=0.9,en;q=0.8" });
+  const headers = new Headers({ "user-agent": DEFAULT_UA, "accept-language": "en-US,en;q=0.9" });
   // Header names are case-insensitive: a caller's "User-Agent" replaces the default instead of joining it.
   for (const [name, value] of Object.entries(opts.headers ?? {})) headers.set(name, value);
   const publicHeaders = new Set(["accept", "accept-language", "accept-encoding", "user-agent", "cache-control", "if-modified-since", "if-none-match", "range", "if-range"]);

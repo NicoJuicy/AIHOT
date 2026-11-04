@@ -10,9 +10,9 @@ import { PhoneBar } from "../../components/shell/PhoneBar";
  * outline).
  */
 export function CopyPage({ doc, rendered, eyebrow, footer }: { doc: CopyDocument; rendered: RenderedCopy; eyebrow?: ReactNode; footer?: ReactNode }) {
-  const facts = (["版本", "生效日期", "运营主体", "联系方式", "备案号"] as const).filter((k) => doc.meta[k]);
+  const facts = (["Version", "Effective date", "Operator", "Contact", "Registration"] as const).filter((k) => doc.meta[k]);
   const info = facts.length > 0 && (
-    <RailSection title="文档信息">
+    <RailSection title="Document details">
       <dl className="space-y-2 text-[12.5px]">
         {facts.map((k) => (
           <div key={k}>
@@ -24,8 +24,8 @@ export function CopyPage({ doc, rendered, eyebrow, footer }: { doc: CopyDocument
     </RailSection>
   );
   const outline = rendered.outline.length > 2 && (
-    <RailSection title="目录">
-      <nav aria-label="目录">
+    <RailSection title="Contents">
+      <nav aria-label="Contents">
         <ol className="-ml-px space-y-0.5 border-l border-line">
           {rendered.outline.map((o) => (
             <li key={o.id}>
@@ -40,7 +40,7 @@ export function CopyPage({ doc, rendered, eyebrow, footer }: { doc: CopyDocument
   );
   return (
     <>
-    <PhoneBar back={{ to: "/more", label: "我的" }} title={doc.title} />
+    <PhoneBar back={{ to: "/more", label: "Me" }} title={doc.title} />
     <ArticleLayout
       left={info}
       right={
@@ -58,7 +58,7 @@ export function CopyPage({ doc, rendered, eyebrow, footer }: { doc: CopyDocument
           <dl className="mt-5 grid grid-cols-1 border-y border-line text-[12.5px] sm:grid-cols-2 side:hidden">
             {facts.map((k) => (
               <div key={k} className="flex gap-4 border-b border-line-soft py-2.5 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0">
-                <dt className="w-16 shrink-0 text-ink-4">{k}</dt>
+                <dt className="w-28 shrink-0 text-ink-4">{k}</dt>
                 <dd className="min-w-0 text-ink-2">{doc.meta[k]}</dd>
               </div>
             ))}

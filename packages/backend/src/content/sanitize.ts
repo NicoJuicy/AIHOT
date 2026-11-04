@@ -194,7 +194,7 @@ const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 
 // A bare address ends at whitespace, CJK text, full-width punctuation or emoji; trailing sentence
 // punctuation belongs to the sentence, not the link.
-const BARE_URL = /https?:\/\/[^\s<>"^`{|}　-〿㐀-䶿一-鿿＀-￯぀-ヿ가-힯☀-➿️‍\u{1f300}-\u{1faff}]+/gu;
+const BARE_URL = /https?:\/\/[^\s<>"^`{|}\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef\u3040-\u30ff\uac00-\ud7af\u2600-\u27bf\ufe0f\u200d\u{1f300}-\u{1faff}]+/gu;
 const TRAILING_PUNCT = /[.,;:!?*'"”’»…、。，；：！？）\]】}」』》]+$/;
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))/g;
 

@@ -37,7 +37,7 @@ const pages: Record<string, () => string> = {
     `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Episode 42</title><link rel="alternate" href="https://example.org/episodes/42"/>` +
     `<published>2026-09-30T00:00:00Z</published><summary type="html">How leaders build confidence with their team.</summary></entry></feed>`,
   // A list API that gives wall-clock times without a zone, and a page whose metadata does too.
-  "/zoneless.json": () => JSON.stringify({ result: [{ id: "a", title: "采购公告", publishDate: "2026-09-30 17:43:58" }, { id: "b", title: "Zoned", publishDate: "2026-09-30T17:43:58Z" }, { id: "c", title: "Abbreviated zone", publishDate: "Wed, 30 Sep 2026 17:43:58 EST" }] }),
+  "/zoneless.json": () => JSON.stringify({ result: [{ id: "a", title: "Procurement notice", publishDate: "2026-09-30 17:43:58" }, { id: "b", title: "Zoned", publishDate: "2026-09-30T17:43:58Z" }, { id: "c", title: "Abbreviated zone", publishDate: "Wed, 30 Sep 2026 17:43:58 EST" }] }),
   "/zoneless-post": () => `<html><head><meta property="article:published_time" content="2026-09-30 17:43:58"></head><body><p>Post</p></body></html>`,
   // A Next.js page whose embedded posts hold arrays and brackets of their own.
   "/flight": () => `<html><body><script>self.__next_f.push([1,${JSON.stringify(`5:["$","div",null,{"children":[],"posts":${JSON.stringify([
@@ -49,15 +49,15 @@ const pages: Record<string, () => string> = {
   "/ld-post": () =>
     `<html><head><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Blog"},` +
     `{"@type":"BlogPosting","headline":"Turn REST APIs into MCP tools","datePublished":"2026-09-24"}]}</script></head><body><p>Post</p></body></html>`,
-  // A site that negotiates its language: the article at /en/post, its translation at /zh/post.
-  "/en/blog": () => `<a class="row" href="/en/post"><p>Improved token efficiency</p><time>Sep 23, 2026</time></a>`,
+  // A site that negotiates its language: the article at /de/post, its translation at /en/post.
+  "/de/blog": () => `<a class="row" href="/de/post"><p>Effizientere Tokens</p><time>Sep 23, 2026</time></a>`,
+  "/de/post": () => article("Effizientere Tokens", "Agenten schaffen jetzt längere Läufe mit weniger Tokens. ".repeat(8)),
   "/en/post": () => article("Improved token efficiency", "Agents now finish longer runs with fewer tokens. ".repeat(8)),
-  "/zh/post": () => article("提升 token 效率", "智能体现在能用更少的 token 完成更长的运行。".repeat(12)),
-  "/en/feed.xml": () => `<rss version="2.0"><channel><item><title>Improved token efficiency</title><link>${site}/en/post</link><pubDate>Wed, 23 Sep 2026 12:00:00 GMT</pubDate></item></channel></rss>`,
+  "/de/feed.xml": () => `<rss version="2.0"><channel><item><title>Effizientere Tokens</title><link>${site}/de/post</link><pubDate>Wed, 23 Sep 2026 12:00:00 GMT</pubDate></item></channel></rss>`,
   // liquid.ai/blog/lfm3 was 8.7 MB: the framework inlines the whole page payload again as script.
   "/large/post": () => article("LFM3", `Benchmarks for the new models. ${"Each row compares the same task. ".repeat(12)}</p><table><tr><th>Benchmark</th><th>LFM3</th></tr><tr><td><p>LiveClaw</p></td><td><p>45.60</p></td></tr></table><p>`)
     .replace("</body>", `<script>${"x".repeat(9 * 1024 * 1024)}</script></body>`),
-  "/en/items.json": () => JSON.stringify([{ title: "Improved token efficiency", url: `${site}/en/post` }]),
+  "/de/items.json": () => JSON.stringify([{ title: "Effizientere Tokens", url: `${site}/de/post` }]),
 };
 function article(title: string, text: string) {
   return `<html><head><title>${title}</title><meta property="article:published_time" content="2026-09-23T12:00:00Z"></head><body><article><h1>${title}</h1><p>${text}</p></article></body></html>`;
@@ -66,8 +66,8 @@ const languages: Array<{ path: string; language: string | undefined }> = [];
 const server = http.createServer((req, res) => {
   const path = req.url ?? "";
   languages.push({ path, language: req.headers["accept-language"] });
-  if (path === "/en/post" && /^zh/.test(req.headers["accept-language"] ?? "")) {
-    res.writeHead(307, { location: "/zh/post" });
+  if (path === "/de/post" && /^en/.test(req.headers["accept-language"] ?? "")) {
+    res.writeHead(307, { location: "/en/post" });
     return res.end();
   }
   const found = Object.hasOwn(pages, path);
@@ -82,16 +82,16 @@ after(() => new Promise<void>((resolve) => server.close(() => resolve())));
 test("Jina card links become posts with their own titles", () => {
   const md = [
     "[Skip to main content](http://example.org/blog/#main)",
-    "[![Image 1: hero](https://cdn.example.org/a.jpg) ##### 智元发布GE-Act 2.0 新闻资讯 | 2026-09-20](https://example.org/blog/220.html \"智元发布GE-Act 2.0\")",
-    "[![Image 2](https://cdn.example.org/b.png) ##### 小米18 Pro Max 测评 尾巴视频](http://example.org/blog/784.html)",
+    "[![Image 1: hero](https://cdn.example.org/a.jpg) ##### Agibot releases GE-Act 2.0 News | 2026-09-20](https://example.org/blog/220.html \"Agibot releases GE-Act 2.0\")",
+    "[![Image 2](https://cdn.example.org/b.png) ##### Xiaomi 18 Pro Max review video](http://example.org/blog/784.html)",
     "[![Image 3](https://cdn.example.org/c.png)](https://example.org/blog/carousel.html)",
     "# [Introducing v6](http://example.org/blog/introducing-v6)",
     "[2026](http://example.org/blog/2026) [Algorithms & Theory](http://example.org/blog/label/algorithms) [Next page](http://example.org/blog/page/2)",
   ].join("\n\n");
   const out = fromMarkdown(md, "https://example.org", source({ url: "https://r.jina.ai/http://example.org/blog/", allowUrlPrefixes: ["https://example.org/blog/"] }));
   assert.deepEqual(out, [
-    { url: "https://example.org/blog/220.html", title: "智元发布GE-Act 2.0" },
-    { url: "https://example.org/blog/784.html", title: "小米18 Pro Max 测评 尾巴视频" },
+    { url: "https://example.org/blog/220.html", title: "Agibot releases GE-Act 2.0" },
+    { url: "https://example.org/blog/784.html", title: "Xiaomi 18 Pro Max review video" },
     { url: "https://example.org/blog/introducing-v6", title: "Introducing v6" },
   ]);
 });
@@ -228,12 +228,12 @@ test("hidden page parts are dropped whole, and a news page's closing blocks are 
 });
 
 test("noise words match whatever their case", () => {
-  // 笔记本 is noise, but the lower-case exemption agent keeps a post about an Agent product.
-  const source = { config: { ingestNoiseFilter: { dropMarkers: ["笔记本", "iphone"], keepIfMatches: ["agent"] } } } as never;
+  // Laptop is noise, but the lower-case exemption agent keeps a post about an Agent product.
+  const source = { config: { ingestNoiseFilter: { dropMarkers: ["laptop", "iphone"], keepIfMatches: ["agent"] } } } as never;
   const c = (title: string, excerpt: string) => ({ url: "https://example.org/a", title, excerpt }) as never;
-  assert.equal(noiseFiltered(c("Manus：正组建团队开发面向国内市场的产品", "与笔记本厂商合作的 Agent 产品"), source), false);
-  assert.equal(noiseFiltered(c("新款笔记本开售", "首发价 4999 元"), source), true);
-  assert.equal(noiseFiltered(c("iPhone 18 开售", ""), source), true);
+  assert.equal(noiseFiltered(c("Manus is building a team for a product aimed at the domestic market", "An Agent product made with LAPTOP makers"), source), false);
+  assert.equal(noiseFiltered(c("New Laptop goes on sale", "Launch price 4999 yuan"), source), true);
+  assert.equal(noiseFiltered(c("iPhone 18 goes on sale", ""), source), true);
 });
 
 test("a time without a zone is read in the source's offset, in JSON lists and in detail page metadata", async () => {
@@ -259,27 +259,27 @@ test("dates in yyyymmdd and in JSON-LD are read", async () => {
 });
 
 test("a source's language reaches its listing, detail page and article body, which stay in that language", async () => {
-  const EN = "en-US,en;q=0.9";
+  const DE = "de-DE,de;q=0.9";
   const sent = (path: string) => languages.filter((hit) => hit.path === path).at(-1)?.language;
-  const listing = { url: `${site}/en/blog`, parseMode: "html", itemSelector: "a.row", titleSelector: "p", publishedAtSelector: "time", publishedAtUtcOffset: "+00:00" };
-  const web = source({ ...listing, acceptLanguage: EN, detail: { publishedAtSelector: "meta[property='article:published_time']" } });
+  const listing = { url: `${site}/de/blog`, parseMode: "html", itemSelector: "a.row", titleSelector: "p", publishedAtSelector: "time", publishedAtUtcOffset: "+00:00" };
+  const web = source({ ...listing, acceptLanguage: DE, detail: { publishedAtSelector: "meta[property='article:published_time']" } });
   const [item] = await fetchWebList(web);
-  assert.equal(sent("/en/blog"), EN);
-  assert.equal(item?.url, `${site}/en/post`, "the article keeps its own address");
+  assert.equal(sent("/de/blog"), DE);
+  assert.equal(item?.url, `${site}/de/post`, "the article keeps its own address");
   const detail = await fetchDetail(item!.url, web, { date: true, title: false, summary: false, body: true });
-  assert.match(detail.body?.text ?? "", /^Agents now finish/);
-  const body = await extractFromUrl(item!.url, "article:fixture", pageRules({ acceptLanguage: EN }));
-  assert.match(body?.text ?? "", /^Agents now finish/);
-  assert.equal(languages.some((hit) => hit.path === "/zh/post"), false, "no read was sent to the translation");
-  await fetchRss(source({ feedUrl: `${site}/en/feed.xml`, acceptLanguage: EN }));
-  assert.equal(sent("/en/feed.xml"), EN);
-  await fetchJsonList(source({ url: `${site}/en/items.json`, titlePaths: ["title"], urlTemplate: "{raw:url}", acceptLanguage: EN }));
-  assert.equal(sent("/en/items.json"), EN);
+  assert.match(detail.body?.text ?? "", /^Agenten schaffen/);
+  const body = await extractFromUrl(item!.url, "article:fixture", pageRules({ acceptLanguage: DE }));
+  assert.match(body?.text ?? "", /^Agenten schaffen/);
+  assert.equal(languages.some((hit) => hit.path === "/en/post"), false, "no read was sent to the translation");
+  await fetchRss(source({ feedUrl: `${site}/de/feed.xml`, acceptLanguage: DE }));
+  assert.equal(sent("/de/feed.xml"), DE);
+  await fetchJsonList(source({ url: `${site}/de/items.json`, titlePaths: ["title"], urlTemplate: "{raw:url}", acceptLanguage: DE }));
+  assert.equal(sent("/de/items.json"), DE);
 
-  // Without one, the default Chinese preference stays.
+  // Without one, the default English preference stays.
   await fetchWebList(source(listing));
-  assert.match(sent("/en/blog") ?? "", /^zh-CN/);
-  assert.match((await extractFromUrl(item!.url, "article:fixture", pageRules({})))?.text ?? "", /^智能体/);
+  assert.match(sent("/de/blog") ?? "", /^en-US/);
+  assert.match((await extractFromUrl(item!.url, "article:fixture", pageRules({})))?.text ?? "", /^Agents now finish/);
 });
 
 test("a page of several megabytes is read directly, keeping its tables", async () => {
@@ -295,5 +295,5 @@ test("a source's language is an Accept-Language value, refused by kinds that rea
       assert.deepEqual(unsupportedConfig(kind, { acceptLanguage }), ["acceptLanguage"], `${kind} ${JSON.stringify(acceptLanguage)}`);
     }
   }
-  for (const kind of ["x_search", "mp_account", "external"] as const) assert.deepEqual(unsupportedConfig(kind, { acceptLanguage: "en" }), ["acceptLanguage"], kind);
+  for (const kind of ["x_search", "external"] as const) assert.deepEqual(unsupportedConfig(kind, { acceptLanguage: "en" }), ["acceptLanguage"], kind);
 });

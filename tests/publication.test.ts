@@ -1,7 +1,7 @@
 // Public scope and sync through the real api routes: a licence revocation or a withdrawal reaches
 // every exit, reports stop quoting withdrawn items, the hot board drops a withdrawn item at once, item
 // pages follow one rule, a withdrawal next to an unresolved selection leaves new snapshots at once,
-// snapshots answer conditional requests, and browsing 全部动态 leaves out low scores that a search still finds.
+// snapshots answer conditional requests, and browsing All items leaves out low scores that a search still finds.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -49,7 +49,7 @@ async function article(): Promise<string> {
     sourceId: SOURCE, url: `https://example.com/${T}-${n}`, title: `Test ${n}`, bodyText: BODY, bodyHtml: `<p>${BODY}</p>`, bodyStatus: "ok", via: "fetch", publishedAt: minuteAgo, discoveredAt: minuteAgo,
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, reason_zh, score, selected)
-            VALUES (${articleId}, 1, 'rule', 'pass', 'ai-models', ${`标题${n}-${T}`}, ${`SUMMARY-${n}-${T}`}, '理由', 90, true)`;
+            VALUES (${articleId}, 1, 'rule', 'pass', 'ai-models', ${`Title${n}-${T}`}, ${`SUMMARY-${n}-${T}`}, 'Reason', 90, true)`;
   return articleId;
 }
 
@@ -102,20 +102,20 @@ test("manual score corrections, including no score, survive every public project
 test("Markdown preserves a table's headings, caption, links, alignment and multiline cells in both languages", async () => {
   const id = await article();
   const table = '<table><caption>Benchmark results</caption><thead><tr><th>Model</th><th align="right">Score</th></tr></thead><tbody><tr><td><a href="https://example.com/model">A|B</a></td><td>90<br>±1</td></tr></tbody></table>';
-  await sql`UPDATE articles SET language = 'en', body_html = ${table} WHERE id = ${id}`;
-  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, ${table.replace('Benchmark results', '基准结果').replace('Model', '模型').replace('Score', '分数')}, '基准结果', 'source')`;
+  await sql`UPDATE articles SET language = 'de', body_html = ${table} WHERE id = ${id}`;
+  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, ${table.replace('Benchmark results', 'Translated results').replace('Model', 'Translated model').replace('Score', 'Translated score')}, 'Translated results', 'source')`;
   await publishArticle(id, released());
   const raw = await app.inject({ method: "GET", url: `/items/${id}/markdown` });
   assert.equal(raw.statusCode, 200);
   assert.equal(raw.headers.link, `<${config.siteUrl}/items/${id}>; rel="canonical"`);
   const $ = cheerio.load(marked.parse(raw.body, { async: false, gfm: true }));
   assert.equal($('table').length, 2, 'both original and translated tables survive export');
-  assert.deepEqual($('table th').toArray().map((node) => $(node).text()), ['模型', '分数', 'Model', 'Score']);
+  assert.deepEqual($('table th').toArray().map((node) => $(node).text()), ['Translated model', 'Translated score', 'Model', 'Score']);
   assert.equal($('table th').last().attr('align'), 'right');
   assert.equal($('table td a').last().text(), 'A|B');
   assert.equal($('table td a').last().attr('href'), 'https://example.com/model');
   assert.equal($('table td').last().find('br').length, 1);
-  assert.ok($.text().includes('基准结果') && $.text().includes('Benchmark results'));
+  assert.ok($.text().includes('Translated results') && $.text().includes('Benchmark results'));
 });
 
 test("Markdown retains tables that cannot be represented without changing their meaning", async () => {
@@ -153,22 +153,22 @@ test("Markdown retains numeric superscripts, subscripts and fenced code while re
 
 test("site reading sends one language while exports retain both, including after withdrawal", async () => {
   const id = await article();
-  await sql`UPDATE articles SET language = 'en', body_html = '<h2>Original heading</h2><p>Original full body</p>' WHERE id = ${id}`;
-  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, '<h2>译文标题</h2><p>中文完整正文</p>', '中文完整正文', 'source')`;
+  await sql`UPDATE articles SET language = 'de', body_html = '<h2>Original heading</h2><p>Original full body</p>' WHERE id = ${id}`;
+  await sql`INSERT INTO translations (article_id, revision, body_html, body_text, origin) VALUES (${id}, 1, '<h2>Translated heading</h2><p>Translated full body</p>', 'Translated full body', 'source')`;
   await publishArticle(id, released());
   const normal = JSON.parse((await get(`/api/site/items/${id}`)).body);
   const original = JSON.parse((await get(`/api/site/items/${id}/original`)).body);
   assert.equal(normal.bodyLanguage, 'zh');
   assert.equal(normal.hasTranslation, true);
   assert.equal(normal.body.original, null);
-  assert.ok(normal.body.zh.includes('中文完整正文'));
-  assert.equal(normal.outline[0].text, '译文标题');
+  assert.ok(normal.body.zh.includes('Translated full body'));
+  assert.equal(normal.outline[0].text, 'Translated heading');
   assert.equal(original.bodyLanguage, 'original');
   assert.equal(original.body.zh, null);
   assert.ok(original.body.original.includes('Original full body'));
   assert.equal(original.outline[0].text, 'Original heading');
   const md = (await get(`/items/${id}/markdown`)).body;
-  assert.ok(md.includes('Original full body') && md.includes('中文完整正文'));
+  assert.ok(md.includes('Original full body') && md.includes('Translated full body'));
   await setVisibility(id, { visibility: 'withdrawn', reason: 'test', version: 0 }, 'test');
   assert.equal((await get(`/api/site/items/${id}/original`)).status, 404);
 });
@@ -229,7 +229,7 @@ test("a withdrawn item leaves every report exit", async () => {
   const id = await article();
   await publishArticle(id, released());
   const content = {
-    sections: [{ label: "模型", items: [{ itemId: id, title: `LEAD-${T}`, summary: `QUOTED-${T}`, sourceUrl: `https://example.com/original-${T}`, sourceName: "Test" }] }],
+    sections: [{ label: "Models", items: [{ itemId: id, title: `LEAD-${T}`, summary: `QUOTED-${T}`, sourceUrl: `https://example.com/original-${T}`, sourceName: "Test" }] }],
     flashes: [],
   };
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
@@ -327,7 +327,7 @@ test("item pages follow one rule: unsummarised editorial items keep one, hot_sig
   await publishArticle(plain);
   const { articleId: signal } = await material(SIGNAL, "signal");
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
-            VALUES (${signal}, 1, 'replay', 'pass', 'industry', ${`信号-${T}`}, ${`SIGNAL-SUMMARY-${T}`}, 80, false)`;
+            VALUES (${signal}, 1, 'replay', 'pass', 'industry', ${`Signal-${T}`}, ${`SIGNAL-SUMMARY-${T}`}, 80, false)`;
   await publishArticle(signal);
 
   const page = await get(`/api/site/items/${plain}`);
@@ -339,8 +339,8 @@ test("item pages follow one rule: unsummarised editorial items keep one, hot_sig
   assert.equal((await get(`/items/${signal}/markdown`)).status, 404);
 
   const publicId = randomUUID();
-  const [story] = await sql<{ id: number }[]>`INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${publicId}, ${`事件-${T}`}, now(), now()) RETURNING id`;
-  const [fact] = await sql<{ id: number }[]>`INSERT INTO facts (public_id, story_id, title) VALUES (${`f-${T}`}, ${story!.id}, ${`事实-${T}`}) RETURNING id`;
+  const [story] = await sql<{ id: number }[]>`INSERT INTO stories (public_id, title, first_report_at, latest_at) VALUES (${publicId}, ${`Story-${T}`}, now(), now()) RETURNING id`;
+  const [fact] = await sql<{ id: number }[]>`INSERT INTO facts (public_id, story_id, title) VALUES (${`f-${T}`}, ${story!.id}, ${`Fact-${T}`}) RETURNING id`;
   await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${fact!.id}, ${plain}, 'report'), (${fact!.id}, ${signal}, 'report')`;
   const storyPage = await get(`/api/site/stories/${publicId}`);
   assert.equal(storyPage.status, 200, "a story whose only page is unsummarised still has a page");
@@ -560,7 +560,7 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
 test("a new selected snapshot includes corrections already covered by its watermark", async () => {
   const id = await article();
   await publishArticle(id, released());
-  const title = '已经核实的更正标题';
+  const title = 'Verified corrected title';
   await overrideFields(id, { fields: { title }, reason: 'correct before snapshot', version: 0 }, 'test');
   for (const fields of ['default', 'minimal']) {
     const response = await get(`/api/v1/selected/snapshot?fields=${fields}&limit=1000`);
@@ -581,7 +581,7 @@ test("a correction between snapshot pages arrives through changes after the fixe
   assert.ok(first.nextPage);
   const id = ids.find((id) => !first.items.some((item: { id: string }) => item.id === id))!;
   const oldTitle = JSON.parse((await get(`/api/site/items/${id}`)).body).title;
-  const title = '翻页期间刚刚核实的更正标题';
+  const title = 'Corrected title verified between pages';
   await overrideFields(id, { fields: { title }, reason: 'correct during snapshot', version: 0 }, 'test');
 
   const continuation = await get(`/api/v1/selected/snapshot?limit=1000&page=${encodeURIComponent(first.nextPage)}`);
@@ -601,7 +601,7 @@ test("a correction between snapshot pages arrives through changes after the fixe
 
 // Failure modes: a low-score item still shows on the web list or its page count, v1 (which MCP reads), the
 // Agent list or the all RSS; an unscored item disappears; a search no longer reaches a low-score item.
-test("browsing 全部动态 on every exit leaves out items below the floor, which a search still finds", async () => {
+test("browsing All items on every exit leaves out items below the floor, which a search still finds", async () => {
   const source = `${SOURCE}-floor`;
   const at = new Date(Date.now() - 3600_000);
   const floor = SELECTION.browseFloor;

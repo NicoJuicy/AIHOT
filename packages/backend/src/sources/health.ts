@@ -62,19 +62,19 @@ export interface QuietSource extends SourceHealthRow {
   quiet_days: number | null;
 }
 
-export const SOURCE_USE_NAMES: Record<string, string> = { editorial: "编辑内容", hot_signal: "热度信号" };
+export const SOURCE_USE_NAMES: Record<string, string> = { editorial: "Editorial", hot_signal: "Heat signal" };
 
 /** A fixable source problem. */
 export type SourceProblem = "failing" | "unstable" | "undated" | "revisions" | "details";
 /** Each fixable problem as it is listed, per source: `action` is for the daily follow-up. */
 export const SOURCE_PROBLEMS: { problem: SourceProblem; title: string; describe: (s: SourceHealthRow) => string; observedAt: (s: SourceHealthRow) => Date | null; action: string }[] = [
-  { problem: "failing", observedAt: s => s.last_failed_at, title: "连续抓取失败", describe: s => `连续失败 ${s.fail_count} 次${s.last_error ? `，${s.last_error}` : ""}`, action: "转给 AI 检查抓取错误" },
-  { problem: "unstable", observedAt: s => s.last_unusable_at, title: "反复读不出条目", describe: s => `近 7 天 ${s.unusable}/${s.runs} 次抓到了页面却没解析出条目`, action: "即使最近成功也需检查，避免继续漏收" },
-  { problem: "undated", observedAt: s => s.last_undated_at, title: "文章缺发布时间", describe: s => `近 7 天缺发布时间 ${s.undated} 篇`,
-    action: "缺时间可能让新闻按历史文章处理" },
-  { problem: "revisions", observedAt: s => s.last_repeated_at, title: "文章反复修订", describe: s => `近 7 天反复修订 ${s.repeated} 篇`,
-    action: "需核对正文是否混入变化内容" },
-  { problem: "details", observedAt: s => s.last_detail_failure_at, title: "详情补全失败", describe: s => `近 7 天失败 ${s.detail_failures}/${s.detail_attempts} 页`, action: "查看抓取记录中的详情地址与错误" },
+  { problem: "failing", observedAt: s => s.last_failed_at, title: "keeps failing to fetch", describe: s => `failed ${s.fail_count} times in a row${s.last_error ? `, ${s.last_error}` : ""}`, action: "pass this to AI to check the fetch errors" },
+  { problem: "unstable", observedAt: s => s.last_unusable_at, title: "repeatedly yields no entries", describe: s => `${s.unusable}/${s.runs} fetches in the last 7 days got the page but parsed no entries`, action: "check it even if recent fetches succeeded, so it does not keep missing items" },
+  { problem: "undated", observedAt: s => s.last_undated_at, title: "articles lack a publish time", describe: s => `${s.undated} ${s.undated === 1 ? "article" : "articles"} without a publish time in the last 7 days`,
+    action: "without a time, news may be treated as old articles" },
+  { problem: "revisions", observedAt: s => s.last_repeated_at, title: "articles keep being revised", describe: s => `${s.repeated} ${s.repeated === 1 ? "article" : "articles"} revised repeatedly in the last 7 days`,
+    action: "check whether changing content has crept into the body text" },
+  { problem: "details", observedAt: s => s.last_detail_failure_at, title: "detail fetches fail", describe: s => `${s.detail_failures}/${s.detail_attempts} detail pages failed in the last 7 days`, action: "check the detail URLs and errors in the fetch records" },
 ];
 
 /** A run error that is the network or the origin's answer, not our reading of the page (fetch_runs.error, 10-01..11-01). */
@@ -132,7 +132,7 @@ export async function sourceHealth(now = Date.now()) {
         OR EXISTS (SELECT 1 FROM article_discoveries history WHERE history.source_id = s.id)) AS ever_output
     FROM sources s LEFT JOIN runs r ON r.source_id = s.id LEFT JOIN discoveries d ON d.source_id = s.id
       LEFT JOIN items a ON a.source_id = s.id LEFT JOIN repeated e ON e.source_id = s.id
-    WHERE s.enabled AND s.kind NOT IN ('external','mp_account') AND s.participation_mode IN ('editorial','hot_signal')
+    WHERE s.enabled AND s.kind IN ('rss','web_list','json_list','x_search') AND s.participation_mode IN ('editorial','hot_signal')
     ORDER BY s.name,s.id`;
   // Quiet is the old seven-day signal, kept as the trigger. Whether it is late is now read from the
   // source itself: a monthly blog is quiet for a month between posts without being broken, and a

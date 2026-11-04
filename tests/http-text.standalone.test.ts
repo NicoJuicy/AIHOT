@@ -24,14 +24,14 @@ async function read(path: string, bytes: Buffer, contentType = "text/plain; char
 }
 
 test("received NUL text is representable in PostgreSQL while the original bytes remain intact", async () => {
-  const bytes = Buffer.from("Title: 正文\nMarkdown Content:\n甲\0乙😀\n\t\\u0000");
+  const bytes = Buffer.from("Title: Body\nMarkdown Content:\nAlpha\0Beta😀\n\t\\u0000");
   const response = await read("/nul", bytes);
-  assert.equal(response.text(), "Title: 正文\nMarkdown Content:\n甲�乙😀\n\t\\u0000");
+  assert.equal(response.text(), "Title: Body\nMarkdown Content:\nAlpha�Beta😀\n\t\\u0000");
   assert.deepEqual(response.body, bytes);
 });
 
 test("normal text and its escaped NUL notation are unchanged", async () => {
-  const text = "中文😀\n\t\\u0000";
+  const text = "Café — naïve 😀\n\t\\u0000";
   assert.equal((await read("/ordinary", Buffer.from(text))).text(), text);
 });
 
@@ -40,5 +40,5 @@ test("NUL is handled after decoding a declared non-UTF8 charset", async () => {
 });
 
 test("a quoted charset in Content-Type is honoured", async () => {
-  assert.equal((await read("/quoted", Buffer.from([0xd6, 0xd0, 0xce, 0xc4]), 'text/html; charset="gb2312"')).text(), "中文");
+  assert.equal((await read("/quoted", Buffer.from([0xe1, 0xe8, 0xf1]), 'text/html; charset="iso-8859-7"')).text(), "αθρ");
 });

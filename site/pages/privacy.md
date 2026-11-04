@@ -1,34 +1,34 @@
-# 隐私说明
+# Privacy Notice
 
-这是开源框架自带的模板，只写了这套软件默认会处理哪些数据。上线前请按你的实际情况改写（运营主体、联系方式、你另外接入的统计或服务），必要时请专业人士审阅。
+This is the template that ships with the open-source framework, and it only covers the data this software handles by default. Before launch, rewrite it for your situation (the operator, contact details, and any analytics or services you add), and have it reviewed by a professional if needed.
 
-| 项 | 值 |
+| Field | Value |
 |---|---|
-| 版本 | 请填写 |
-| 生效日期 | 请填写 |
-| 运营主体 | 请填写 |
-| 联系方式 | 请填写 |
+| Version | To be filled in |
+| Effective date | To be filled in |
+| Operator | To be filled in |
+| Contact | To be filled in |
 
-页首说明：
+Page summary:
 
-> 使用本站不需要注册或登录。我们只处理让网站正常运行、处理反馈所必需的信息，不出售个人信息。
+> You don't need to sign up or log in to use this site. We only process the information needed to run the website and handle feedback, and we don't sell personal information.
 
-## 1. 浏览器本地数据
+## 1. Data stored in your browser
 
-收藏、已读记录、深浅色设置、最近搜索（你搜过的词，最多 10 条）、更新日志已读状态和反馈草稿保存在你当前的浏览器里；返回时的列表位置、滚动位置和展开状态只存在当前标签页的会话存储里，关闭标签页即清除。这些都不会发送到服务器。清除浏览器数据后它们会消失；换设备不会同步。收藏、已读记录和深浅色设置可以在“收藏”页导出和导入。
+Your stars, read history, light/dark setting, recent searches (the terms you searched for, up to 10), changelog read status and feedback drafts are stored in your current browser; list positions, scroll positions and expanded sections used when you go back are kept only in the current tab's session storage and are cleared when you close the tab. None of this is sent to the server. It disappears when you clear your browser data, and it doesn't sync across devices. Stars, read history and the light/dark setting can be exported and imported on the "Starred" page.
 
-## 2. 反馈
+## 2. Feedback
 
-你在反馈页提交的内容、选填的邮箱、提交时所在页面的地址，以及你选择附上的截图，会保存在服务器上，用于处理你的反馈。站点配置了飞书内部群时，反馈会转发到那个群，截图上传到飞书后服务器上不再保留。为防止滥用，服务器会保存一个由网络地址和浏览器类别计算出的、无法还原的标识，用于限流和封禁滥用来源。
+What you submit on the feedback page, the optional email address, the address of the page you were on when you submitted it, and any screenshot you choose to attach are stored on the server to handle your feedback. When the site has a Feishu internal group configured, feedback is forwarded to that group, and screenshots are no longer kept on the server once uploaded to Feishu. To prevent abuse, the server stores an irreversible identifier computed from your network address and browser type, used for rate limiting and for blocking abusive sources.
 
-## 3. 服务器与网络日志
+## 3. Server and network logs
 
-本软件默认不做访客统计。你的服务器、反向代理或 CDN 可能会按它们自己的配置记录访问日志（如 IP 地址、访问时间、页面地址、浏览器信息）。请在这里写明你实际使用的服务和保存期限。
+By default this software does not collect visitor analytics. Your server, reverse proxy or CDN may keep access logs according to their own configuration (such as IP address, time of access, page address and browser information). State here the services you actually use and how long the logs are kept.
 
-## 4. 第三方内容
+## 4. Third-party content
 
-本站展示的是第三方原文的摘要与链接。点击原文链接后，你访问的是对方网站，适用对方的隐私政策。
+This site shows summaries of and links to third-party originals. When you follow a link to the original, you are visiting that site, and its privacy policy applies.
 
-## 5. 联系我们
+## 5. Contact us
 
-请写明联系方式，以及查询、更正或删除反馈资料的方式。
+State your contact details, and how people can request access to, correction of, or deletion of their feedback data.

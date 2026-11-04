@@ -1,104 +1,104 @@
-# 精选与校准
+# Selection and calibration
 
-## 一条资料怎么变成精选
+## How an item becomes a selection
 
-1. **收进来**：同一网址、同一内容只留一份。普通文章只有标题或摘要时，按信源规则补取正文；视频播放页使用已提供的文字材料，不把播放器页面当正文。没有可信发布时间的资料先不公开，读到原文日期后再判断新旧（见 [信源](sources.md#规则旧文不刷屏) 的“旧文不刷屏”）。
-2. **预筛**（`prefilter.md`）：这是不是本行业的事。宽进，只拦明显无关的：`BLOCK` 的资料不出现在任何公开页面；`PASS` 和拿不准的 `UNKNOWN` 继续往下走。只有标题、没有正文、订阅摘要或帖子文字的普通文章先等待材料，不评分、不凭标题写文案，也不进入公开池；材料补齐产生新修订后再判断。可展示的空文字或纯链接原帖沿用原有评分与原样展示规则。
-3. **评分**（`selection-score.md`）：同一份评分标准独立打两次分（0–100）。**两次之和 ≥ 2 × 门槛**就够分，门槛按信源分级不同，信源类别还能把某些官方信源的门槛抬高；够分的还要过第 6 步的去重才进精选。页面上显示的分数是两次的平均（向下取整）。
-4. **结构化**（`structure.md`）：和评分同时进行。给出分类和标签（页面上显示的就是这一份）、主体公司，判断这篇是一条具体新闻、讲多件事的综合稿，还是材料不够、说不清；是具体新闻的，抽出它的事实（谁、做了什么、对什么、什么时候）和原文里的出处、前提条件。主题页、事件归组和日报都靠它。
-5. **写标题摘要**：等结构化完成再写。入选的和差一点入选的（平均分高于 `understandFloor`），按 `content-understanding.md` 写中文标题、答案先行的摘要和推荐理由；其余的按 `summarize-*.md` 写简短的标题摘要，进“全部动态”。浏览“全部动态”（网页列表，接口、给 Agent 的最新列表和 MCP 的全部模式，“全部动态”RSS）只出平均分不低于 `browseFloor` 的资料，没评上分的照常出；带搜索词时仍搜全部。X 帖子没有正文或只含链接时，保留原帖的链接、图片和引用，不调用写作或翻译模型，也不生成“请补充正文”的文案；已经取得实际正文的 X 长文照常处理。写好的文字用了 `industry/wording.ts` 里列出的词时，再让模型只改这些词一次（`mend-wording.md`）。
-6. **归组与去重**（`group-*.md`）：不同来源报道的同一件事归成一个事件，事件页有综述（`story-digest.md`），“热门”按事件排。修改综述提示词前，可用 [综述评测](story-digest-evaluation.md) 在同一批事件上把现有提示词和候选提示词并排比较。分数够了的资料要等归组完成才进精选：模型同时判断它和精选里已有的报道是不是同一条新闻，以及它有没有精选还没给过的具体信息。
-   - 同一条新闻的几篇报道都可以入选：网页上折成一个阅读组；API、RSS 和同步接口每条新闻只出一条，由代表报道出面：官方一手优先；其次是核实过的官方账号（填了 `publisherRole` 和 `owner_entity_id` 的 `T1_5` 账号，新闻的主体正是这家公司，机构先于个人）；再往后是有全文的、分数高的、发得早的。
-   - 不是同一条新闻、但没有新信息的（换个说法再介绍一遍已经披露的能力、只是上架到别的平台、只重复已选要点的汇总），不进精选，留在“全部动态”。讲多件事的综合稿不单独成事件，只挂到它提到的事件上，有精选没覆盖的重要内容才入选；材料不够、确认不了是哪条新闻的，不进精选。
-   - 显式撤回的报道保留历史归属，但不再参与之后的归组召回、候选代表、事件起点或自动事件比较；同网址及 X 回复／引用也不能借它提供身份依据。同一事实仍有有效报道时使用有效稿，全撤回则暂不召回；恢复公开后可重新参与。只展示摘要或尚未发布的记录不等于撤回，保留原有资格。已有关系和判断不删除，不批量重新归组。
-   - 确认之前资料只在“全部动态”里，等得再久也不会自动放行。模型调用失败或回答不合格式，这条资料就停在那里：等待超过 10 分钟会告警，后台“运行”页列出这些资料，可以在后台“内容诊断”里打开这条资料，点“重新归组”。所以归组用的模型要能稳定按格式回答。
-7. **日报、周报、月报**：
-   - **日报**每天 08:00 出（日报、周报、月报的出刊时间在 `site/site.ts` 的 `EDITION_TIMES`，下面按默认值写），覆盖前一天 08:00 到当天 08:00，按规则编排，不调用模型。一件事一条，取报道最多的那条新闻里最权威的一篇，同一事件当天的其他进展列在下面，讲多件事的综合稿挂到它提到的最重要那件事下面。最近 7 期报过的不再出现；报过的事件再有进展，只有当事方自己有新动作（教程、观点这类 `commentary` 类别不算）、或这条进展有 4 家以上信源报道时才进正文，其余进快讯。没有报道入选、但有官方原帖并且已有 3 个以上独立参与方的事件也会补进来（只进日报，不进精选、不推送）。按重要性排序（入选报道的最高分、当天讨论它的独立参与方、有没有官方原帖，跟进的减分），前 12 条进正文，同一信源最多 2 条，再往后最多 10 条一行快讯。第一条是头条，导语就是它自己的标题和摘要；第 2–4 条是今日看点。
-   - **周报**（每周一 10:00）和**月报**（每月 1 日 10:30）由这一周、这个月的日报汇编：同一事件跨天只算一件，按日报给它的位置（头条、看点、上了几天）、报道面和评分排序，周报取前 20 件、月报取前 30 件，按日报的分节分栏目。模型（`report-period.md`、`report-period-sections.md`）只写总述和三件以上栏目的一句导读，不增删条目；它写出了条目里没有的名字或数字（拉丁字母的名称、三位以上或带小数点、百分号的数字、词表里的公司），这段话就不用：总述换成按模板生成的一句，栏目不放导读。行业通用词（`taxonomy.ts` 的 `PLAIN_TERMS`）和站名不受这个限制。
-   - 每条精选只进一期：按它的时间算，确认入选比它晚的按确认时间；截止以后才确认的进下一期。
-   - 每半小时检查一次：到点的刊期出一次，已经出过的不重写；停机错过的、失败的，在之后的检查里补上。日报时段里有资料经过判断、但没有新事件时照常出空刊；没有任何资料经过判断仍算失败，缺期按[部署说明](deploy.md#更新)告警。周报、月报的周期内，应有日报齐全且原始正文条目全部为空时，自动跳过该期，不写空周报或月报、不调用模型，也不记为生成或失败；首个周期从全站最早日报开始检查。没有可汇总条目时，若缺失日报或原有条目后来无法公开，仍保留原有错误。跳过不写永久标记，在现有补刊范围内更正日报后可重新生成。
+1. **Collected**: one copy per URL and per content. When an ordinary article has only a headline or summary, the body is fetched according to the source's rules; for video player pages the text material already provided is used, and the player page isn't treated as the body. Material without a trustworthy publication time stays private until the original's date is read, and is then judged as new or old (see "Old articles don't flood the site" in [Sources](sources.md#rule-old-articles-dont-flood-the-site)).
+2. **Pre-screen** (`prefilter.md`): is this about this field? Broad intake that only blocks the clearly irrelevant: `BLOCK` material doesn't appear on any public page; `PASS` and uncertain `UNKNOWN` move on. Ordinary articles that have only a headline, with no body, feed summary or post text, wait for material first: they aren't scored, no copy is written from the headline alone, and they don't enter the public pool; they are judged once the material is complete and produces a new revision. Original posts with empty text or only a link that can be shown follow the existing scoring and as-is display rules.
+3. **Scoring** (`selection-score.md`): the same rubric scores the item twice, independently (0–100). It scores high enough when **the sum of the two is ≥ 2 × the threshold**. The threshold depends on the source tier, and a source category can raise the threshold for certain official sources; items that score high enough still have to pass the dedup in step 6 to enter the selection. The score shown on pages is the average of the two (rounded down).
+4. **Structuring** (`structure.md`): runs at the same time as scoring. It gives the category and tags (the ones shown on pages), the subject company, and decides whether the piece is one specific piece of news, a roundup covering several, or too thin to tell. For specific news, it extracts the facts (who did what to what, and when) along with the source passage and preconditions in the original. Topic pages, event grouping and the daily report all depend on it.
+5. **Headline and summary**: written after structuring finishes. Selected and nearly selected items (average score above `understandFloor`) get an English headline, an answer-first summary and a reason to read according to `content-understanding.md`; the rest get a short headline and summary according to `summarize-*.md` and go into "All AI news". Browsing "All AI news" (the web list, the API, the latest list for agents and the MCP all mode, and the "All AI news" RSS) only shows material with an average score of at least `browseFloor`; material without a score is shown as usual, and search still covers everything. X posts with no body or only links keep their original links, images and quotes, without calling the writing or translation model and without generating "please add the body" copy; X long-form posts with an actual body are processed as usual. If the written text uses words listed in `industry/wording.ts`, the model is asked once more to change only those words (`mend-wording.md`).
+6. **Grouping and dedup** (`group-*.md`): reports of the same story from different sources are grouped into one event, the event page has an overview (`story-digest.md`), and "Trending" ranks events. Before changing the overview prompt, you can compare the current prompt and a candidate side by side on the same events with [Overview evaluation](story-digest-evaluation.md). Material with a high enough score enters the selection only after grouping finishes: the model also decides whether it is the same news as reports already selected, and whether it has specific information the selection hasn't given yet.
+   - Several reports of the same news can all be selected: on the website they fold into one reading group; the API, RSS and the sync API carry one entry per piece of news, the representative report. Official first-hand comes first; next, verified official accounts (`T1_5` accounts with `publisherRole` and `owner_entity_id` filled in, where the subject of the news is that very company, organizations before individuals); after that, reports with full text, higher scores and earlier publication.
+   - Reports that aren't the same news but bring no new information (reintroducing an already disclosed capability in different words, merely listing on another platform, roundups that only repeat points already selected) don't enter the selection and stay in "All AI news". A roundup covering several things doesn't become an event of its own; it is only attached to the events it mentions, and is selected only if it has important content the selection doesn't cover. Material that is too thin to tell which news it is doesn't enter the selection.
+   - An explicitly retracted report keeps its historical assignment but no longer takes part in later grouping recall, representative candidates, event starting points or automatic event comparison; the same URL and X replies or quotes can't use it as evidence of identity either. If the same fact still has a valid report, the valid one is used; if all are retracted, it is not recalled for now, and it can take part again once it is public again. Records shown only as summaries or not yet published are not retractions and keep their eligibility. Existing relations and judgments are not deleted, and nothing is regrouped in bulk.
+   - Until confirmed, the material is only in "All AI news", and it is never let through automatically however long it waits. If the model call fails or the answer doesn't match the format, the item stays there: after waiting more than 10 minutes an alert is raised, the admin "Runs" page lists these items, and you can open the item in admin "Content diagnostics" and click "Regroup". So the grouping model must answer reliably in the required format.
+7. **Daily, weekly and monthly reports**:
+   - The **daily report** is published every day at 08:00 (publishing times of all three are in `EDITION_TIMES` in `site/site.ts`; the defaults are used below). It covers 08:00 the previous day to 08:00 that day, is compiled by rule, and calls no models. One entry per story: the most authoritative report of the piece of news with the most reports; the same event's other developments that day are listed below it, and a roundup covering several things is attached under the most important thing it mentions. Anything covered in the last 7 editions doesn't appear again; a covered event with new developments enters the main section only if the party involved took a new action itself (tutorials, opinions and other `commentary` categories don't count) or the development is reported by 4 or more sources; otherwise it goes into the briefs. Events with no selected report but with an official original post and already 3 or more independent participants are added too (only to the daily report, not the selection, and not pushed). Entries are ranked by importance (the highest score of the selected reports, independent participants discussing it that day, whether there is an official original post, with a penalty for follow-ups); the top 12 enter the main section, at most 2 from the same source, followed by at most 10 one-line briefs. The first entry is the lead story, and its own headline and summary are the lead; entries 2–4 are the day's highlights.
+   - The **weekly report** (every Monday at 10:00) and the **monthly report** (on the 1st at 10:30) are compiled from that week's or month's daily reports: one event across several days counts once, ranked by its place in the dailies (lead story, highlight, how many days it ran), the breadth of coverage and its score. The weekly report takes the top 20 and the monthly the top 30, split into sections following the dailies' sections. The model (`report-period.md`, `report-period-sections.md`) only writes the overview and a one-sentence introduction for sections with three or more entries, without adding or removing entries. If it writes names or numbers that aren't in the entries (Latin-letter names, numbers with three or more digits, decimals or percent signs, companies in the vocabulary), that text isn't used: the overview is replaced by a sentence generated from a template, and the section gets no introduction. Generic industry terms (`PLAIN_TERMS` in `taxonomy.ts`) and the site name are exempt.
+   - Each selected item goes into only one edition: by its own time, or by its confirmation time if it was confirmed later; items confirmed after the cutoff go into the next edition.
+   - A check runs every half hour: each edition that is due is published once, and published editions are not rewritten; editions missed during downtime or that failed are filled in by later checks. When material was judged during the daily report window but there were no new events, an empty edition is published as usual; if no material was judged at all, it still counts as a failure, and a missing edition triggers an alert as described in the [deployment guide](deploy.md#updating). When every daily report expected in a weekly or monthly period exists and all their original body entries are empty, that edition is skipped automatically: no empty weekly or monthly report is written, no model is called, and it isn't recorded as generated or failed. The first period checked starts from the site's earliest daily report. When there is nothing to compile and a daily report is missing or the original entries can no longer be published, the original error is kept. Skipping doesn't write a permanent mark; after a daily report is corrected within the existing fill-in range, the edition can be generated again.
 
-每一步的提示词都在 `industry/prompts/`，改提示词不用改代码。提示词的版本就是它内容的哈希：改了提示词，之后的新资料按新版判断，已经判过的不会重算。
+Every step's prompt is in `industry/prompts/`, and changing prompts doesn't require changing code. A prompt's version is the hash of its content: after a prompt changes, new material is judged by the new version, and material already judged is not recomputed.
 
-## 门槛：`industry/selection.ts`
+## Thresholds: `industry/selection.ts`
 
 ```ts
 export const SELECTION = {
-  thresholds: { T1: 60, T1_5: 65, T2: 76 },   // 两次评分的平均至少要到这个数
-  classes: {                                  // 信源类别：这类信源的门槛不低于这里的数
-    ecosystem: { label: "生态与基础设施", threshold: 70 },
-    leaderboard: { label: "评测榜单", threshold: 76 },
+  thresholds: { T1: 60, T1_5: 65, T2: 76 },   // the average of the two scores must reach at least this
+  classes: {                                  // source categories: sources in a category have a threshold no lower than this
+    ecosystem: { label: "Ecosystem and infrastructure", threshold: 70 },
+    leaderboard: { label: "Leaderboards", threshold: 76 },
   },
-  understandFloor: 50,                        // 平均分高于它的未入选资料，也按入选的写法写
-  browseFloor: 40,                            // 浏览“全部动态”只出平均分不低于它的资料，搜索不受限
+  understandFloor: 50,                        // unselected material averaging above this is also written the way selected items are
+  browseFloor: 40,                            // browsing "All AI news" only shows material averaging at least this; search isn't limited
 };
 ```
 
-官方一手信源（T1）门槛低一些，媒体和个人（T2）门槛高一些：同样一件事，官方原文更值得先看。没有门槛的分级（`EXCLUDE_MP`）不参与精选。
+Official first-hand sources (T1) have a lower threshold, and media and individuals (T2) a higher one: for the same story, the official original is more worth reading first. A tier without a threshold (`EXCLUDE_MP`) doesn't take part in the selection.
 
-分级只说明来源是不是官方、一手。有些官方信源的日常内容主要写给开发者或业内（芯片与云服务、开发框架与工具链、评测榜单……），读者要看的只是其中的大事：在后台“信源”页给它选一个类别，门槛抬到不低于类别的数。只抬不降，分级门槛本来就更高的不受影响；不选类别就只按分级。类别的键存在信源上，上线后不要改名，改了的类别会悄悄失效；评测样本不带类别，按分级门槛算。
+The tier only says whether a source is official and first-hand. Some official sources mostly write for developers or insiders day to day (chips and cloud services, development frameworks and toolchains, leaderboards…), and readers only want the big news among them: give such a source a category on the admin "Sources" page, and its threshold rises to at least the category's value. It only raises, never lowers, so tiers whose threshold is already higher are unaffected; without a category, only the tier applies. The category key is stored on the source, so don't rename it once live, or the renamed category silently stops applying; evaluation samples carry no category and use the tier threshold.
 
-`browseFloor` 设成 `0` 就和以前一样，“全部动态”列出全部公开资料。
+Setting `browseFloor` to `0` restores the old behavior: "All AI news" lists all public material.
 
-这组数是 AIHOT 在 AI 领域一直在用的门槛，偏严：宁可少选几条，也不让噪声进精选。换了行业、改了评分标准，一定要按下面的办法重新校准。
+These are the thresholds AIHOT has always used for AI, and they lean strict: better to select a few fewer items than let noise into the selection. After switching fields or changing the scoring rubric, be sure to recalibrate as described below.
 
-## 校准
+## Calibration
 
-### 1. 准备样本集
+### 1. Prepare a sample set
 
-从你自己的信源里挑 100–200 条资料，一条一条标“该选 / 不该选”，存成 `.data/gold.jsonl`（`.data/` 不进 Git）。每行一条：
+Pick 100–200 items from your own sources, label each one "select / don't select", and save them as `.data/gold.jsonl` (`.data/` isn't committed to Git). One item per line:
 
 ```json
-{"caseId":"law-001","material":{"title":"原文标题","originalTitle":null,"publishedAt":"2026-10-01T09:00:00+08:00","sourceName":"信源名称","bodyZh":null,"bodyOriginal":"正文……"},"sourceFacts":{"sourceKind":"rss","sourceTier":"T1","firstParty":true,"language":"zh"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"regulation"},"gold":{"decision":"select"}}
+{"caseId":"law-001","material":{"title":"Original headline","originalTitle":null,"publishedAt":"2026-10-01T09:00:00+08:00","sourceName":"Source name","bodyZh":null,"bodyOriginal":"Body text…"},"sourceFacts":{"sourceKind":"rss","sourceTier":"T1","firstParty":true,"language":"en"},"samplingContext":{"benchmarkSplit":"development","samplingStratum":"regulation"},"gold":{"decision":"select"}}
 ```
 
-| 字段 | 说明 |
+| Field | Description |
 |---|---|
-| `caseId` | 唯一编号 |
-| `material` | 标题、原标题、发布时间、信源名、正文（中文正文放 `bodyZh`，原文放 `bodyOriginal`，有一个就行） |
-| `sourceFacts` | 信源类型、分级、是否一手（线上只有 `T1` 算一手，标注时保持一致）、语言。分级决定用哪个门槛 |
-| `samplingContext` | 可选。`benchmarkSplit` 分开发集和留出集，`samplingStratum` 是你自己的分组（比如“新规”“判决”“营销”），看错在哪一类 |
-| `gold.decision` | `select` 该选，`reject` 不该选，`either` 两可（不计入准确率） |
+| `caseId` | Unique ID |
+| `material` | Headline, original headline, publication time, source name, body (the body in the site's language goes in `bodyZh`, the original-language body in `bodyOriginal`; one of them is enough) |
+| `sourceFacts` | Source kind, tier, whether first-hand (in production only `T1` counts as first-hand; keep labels consistent with that), language. The tier decides which threshold applies |
+| `samplingContext` | Optional. `benchmarkSplit` separates the development set from the holdout set; `samplingStratum` is your own grouping (for example "new rules", "rulings", "marketing") to see which kind goes wrong |
+| `gold.decision` | `select` should be selected, `reject` should not, `either` could go either way (not counted in accuracy) |
 
-`industry/gold.example.jsonl` 有两条示例。
+`industry/gold.example.jsonl` has two examples.
 
-几条建议：
+A few suggestions:
 
-- 多放**难例**：差一点就该选、差一点就不该选的。一眼就能判断的放太多，准确率会虚高。
-- 分出一部分做**留出集**（`benchmarkSplit: "holdout"`），调提示词只看开发集，最后再用留出集检查一遍，免得把提示词调成只会做这几道题。
-- 标注的人最好就是以后读这个站的人，或者和他们口味一致的人。
-- 评测只跑预筛和两次评分，不含第 6 步的去重：按这条资料本身该不该选来标，不要因为同一件事已经选过另一篇就标“不该选”。
+- Include plenty of **hard cases**: items that almost should be selected and items that almost shouldn't. Too many obvious ones inflate accuracy.
+- Set some aside as a **holdout set** (`benchmarkSplit: "holdout"`). Tune prompts looking only at the development set, then check once more with the holdout set at the end, so the prompt doesn't end up only good at these particular questions.
+- The labeller should ideally be someone who will read the site later, or someone with the same taste.
+- Evaluation only runs the pre-screen and the two scores, not the dedup in step 6: label by whether the item itself should be selected, and don't label it "don't select" because another report of the same story was already selected.
 
-### 2. 跑评测
+### 2. Run the evaluation
 
 ```bash
-node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl --split development --label "第一版评分标准"
+node --env-file=.env scripts/eval-selection.ts --gold .data/gold.jsonl --split development --label "First rubric"
 ```
 
-对每条样本跑一遍预筛和两次评分，输出：
+It runs the pre-screen and both scores on each sample and outputs:
 
-- **有效输出准确率、查准率、查全率和 F1**：只看成功得到入选决定的非 `either` 样本，用来判断模型答出来以后有多准；
-- **覆盖率**：成功得到入选决定的样本占全部非 `either` 金标样本的比例；**完整准确率**则用全部非 `either` 金标样本作分母，把模型失败或回答不合格式也算作没有正确完成；
-- `either` 始终不进入上述质量指标的分母；报告另外记录决定样本失败数与 `either` 失败数。`goldSelectRate` 按全部非 `either` 金标计算，因此同一批样本在不同模型间应保持一致；
-- 门槛从 40 到 90 每隔 2 分（范围可以在下面说的 `DEPLOYMENT.selectionGold` 里改），各自会得到什么结果；门槛扫描同样同时报告有效输出准确率、覆盖率和完整准确率；
-- 判错的条目，完整报告写到 `.data/eval/`，同时导入后台 SelectBench（加 `--no-import` 不导入）。
+- **Valid-output accuracy, precision, recall and F1**: only non-`either` samples that successfully got a selection decision are counted, to judge how accurate the model is once it answers;
+- **Coverage**: the share of all non-`either` gold samples that successfully got a selection decision; **complete accuracy** uses all non-`either` gold samples as the denominator, counting model failures and malformed answers as not done correctly;
+- `either` never enters the denominator of the quality metrics above; the report separately records failures among decision samples and among `either` samples. `goldSelectRate` is computed over all non-`either` gold samples, so it should be the same across models for the same batch;
+- the results at each threshold from 40 to 90 in steps of 2 (the range can be changed in `DEPLOYMENT.selectionGold`, described below); the threshold sweep also reports valid-output accuracy, coverage and complete accuracy;
+- the misjudged items. The full report is written to `.data/eval/` and imported into the admin SelectBench (add `--no-import` to skip the import).
 
-不传 `--models` 时，评测用“精选评分”这一步线上正在用的模型：后台“模型与评测”页切换过的优先，其次是环境变量 `SCORE_MODEL`，再其次是 `site/models.ts` 的 `DEFAULTS.score`，都没有就用默认模型（`.env` 里的 `LLM_*`）。`--models default,deepseek-flash` 可以在同一批样本上比较几个模型。其他常用参数：`--n 200` 最多抽多少条，`--split holdout` 只跑留出集，`--no-import` 不导入 SelectBench。在 `site/site.ts` 的 `DEPLOYMENT.selectionGold` 里写好样本文件、抽样条数、只抽哪一份和门槛扫描范围，以后不带参数运行就用这一套。
+Without `--models`, the evaluation uses the model the "Selection scoring" step currently uses in production: one switched on the admin "Models and evaluation" page first, then the `SCORE_MODEL` environment variable, then `DEFAULTS.score` in `site/models.ts`, and failing all of those the default model (`LLM_*` in `.env`). `--models default,deepseek-flash` compares several models on the same samples. Other common options: `--n 200` for the maximum number of samples, `--split holdout` to run only the holdout set, `--no-import` to skip importing into SelectBench. Put the sample file, sample count, which split to use and the threshold sweep range in `DEPLOYMENT.selectionGold` in `site/site.ts`, and running without options uses that setup.
 
-同一次评测里，不同样本渲染出完全相同的评分输入时，只共享模型的评分结果，各样本仍按自己的预筛结果、信源分级门槛和标注独立计分；失败的结果也在这次运行里共享，这样第一次跑和用已有结果重跑覆盖的样本一样。重复运行会复用已有回执。报告里的 token 用量和平均耗时，按相关回执的全部请求尝试汇总，解析失败后的重试也算在内；用已有结果重跑时，显示的是这些回执累计的用量，不代表这次新增的费用。
+Within one evaluation run, when different samples render exactly the same scoring input, only the model's scoring result is shared; each sample is still scored independently by its own pre-screen result, tier threshold and label. Failures are shared within the run too, so the first run and a rerun with existing results cover the same samples. Repeated runs reuse existing receipts. Token usage and average latency in the report are summed over all request attempts of the related receipts, including retries after parse failures; when rerunning with existing results, the cumulative usage of those receipts is shown, which doesn't represent new spending for this run.
 
-### 3. 看错例，改标准，再跑
+### 3. Look at the errors, change the standard, run again
 
-在后台 SelectBench 里逐条看判错的资料和模型给的理由：
+Go through the misjudged items and the model's reasons one by one in the admin SelectBench.
 
-上传多模型报告时，同一 `caseId` 在各模型下须使用相同的 `gold` 标注，模型的 `decision` 可以不同。标注冲突的报告会在写入前被拒绝，避免同一条资料在并排比较时出现不同的人工答案；不提供逐例 `cases` 的报告仍可导入。
+When uploading a multi-model report, the same `caseId` must have the same `gold` label under every model; the models' `decision` may differ. Reports with conflicting labels are rejected before being written, so the same item never shows different human answers in a side-by-side comparison; reports without per-case `cases` can still be imported.
 
-- 该选没选上，多半是评分标准里没说清它为什么重要：在 `selection-score.md` 里把这类价值写进“必须正常评价”的部分，给出例子。
-- 不该选却选上了，多半是噪声没压住：写进“必须压住”的部分。
-- 整体偏松或偏紧，而判错的条目分数都贴着门槛，再调 `industry/selection.ts` 的门槛。
+- Should have been selected but wasn't: usually the rubric doesn't explain why it matters. Write this kind of value into the "must be assessed fairly" part of `selection-score.md`, with examples.
+- Shouldn't have been selected but was: usually the noise wasn't suppressed. Write it into the "must be suppressed" part.
+- Too loose or too strict overall, with the misjudged items all scoring close to the threshold: then adjust the thresholds in `industry/selection.ts`.
 
-先改标准，再动门槛：门槛只能整体移动，解决不了“哪一类判错了”。每改一次跑一遍，SelectBench 里能看到每一版的对比。比较模型时不要只看有效输出 F1：如果覆盖率明显不同，还要一起看完整准确率；高分但经常无法完成结构化判断的模型，不应被失败样本从分母里“隐藏”掉。
+Change the standard before the thresholds: thresholds only move everything together and can't fix "which kind is misjudged". Run once after each change; SelectBench shows the comparison between versions. When comparing models, don't look only at valid-output F1: if coverage differs noticeably, look at complete accuracy too. A model with high scores that often fails to complete the structured judgment shouldn't have its failed samples "hidden" from the denominator.
 
-## 换模型
+## Changing models
 
-后台“模型与评测”页能看到每一步当前用哪个模型、近期的成功率、耗时和 token 用量，也能直接切换（只影响之后的新任务）。换评分模型之前，先用 `--models` 在同一批样本上比一比。
+The admin "Models and evaluation" page shows which model each step currently uses, its recent success rate, latency and token usage, and lets you switch directly (affecting only new jobs from then on). Before changing the scoring model, compare on the same samples with `--models` first.

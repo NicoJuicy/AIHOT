@@ -177,7 +177,6 @@ const CONVERTS_BEIJING_TIME: Record<string, string> = {
   "packages/backend/src/editorial/writing.ts": "a beijingDate written out, left to the next change of editorial/",
   "site/changelog/FeatureRelease.tsx": "a changelog entry's Beijing date and time with its zone, to the minute, in dateTime",
   "clients/watchdog/watchdog.mjs": "installed as one file away from the repository, so it cannot import time.ts",
-  "clients/mp-watch/articles.ts": "installed away from the repository with only its module's contracts, so it cannot import time.ts",
 };
 
 test("Beijing time is converted only in contracts/time.ts", () => {
@@ -234,7 +233,7 @@ test("corners use the radius scale", () => {
 
 // Copying goes through copyText in apps/web/app/lib/clipboard.ts: in-app browsers without the asynchronous
 // clipboard fall back to a selection copy, and a copy that fails is reported. Five places wrote to the
-// clipboard themselves and skipped the fallback; one of them never copied inside WeChat.
+// clipboard themselves and skipped the fallback; one of them never copied inside an in-app browser.
 test("the clipboard is written only through lib/clipboard.ts", () => {
   const found = webLines()
     .filter(({ file, line }) => file !== "apps/web/app/lib/clipboard.ts" && /navigator\.clipboard|execCommand\(\s*["']copy/.test(line))

@@ -1,1 +1,1 @@
-sections 是栏目导读，只写{{columns}}，键是栏目名：每个一句话，不超过 50 字，点出这个栏目的共同走向或总述没写到的要事；不重复总述里的事件和数字，不复述条目标题。
+sections are section introductions, written only for {{columns}}, keyed by section name: one sentence each, at most 150 characters, pointing out the shared direction of the section or an important item the overview did not cover; do not repeat the events and numbers of the overview, and do not restate item titles.

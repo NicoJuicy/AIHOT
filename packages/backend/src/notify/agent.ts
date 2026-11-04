@@ -17,7 +17,7 @@ export const agentConfigured = () => feishuInternalEnabled() && !!credential("in
 async function deliver(key: string, receipt: Receipt): Promise<boolean> {
   if (receipt.accepted) return true;
   if (!agentConfigured()) return false;
-  let failure = "网络连接失败或超时";
+  let failure = "network connection failed or timed out";
   try {
     const res = await fetch(credential("integrations", "WEBHOOK_HUB_URL")!, {
       method: "POST", redirect: "error", headers: { authorization: `Bearer ${credential("integrations", "WEBHOOK_HUB_KEY")!}`, "content-type": "application/json" },
@@ -39,9 +39,9 @@ async function deliver(key: string, receipt: Receipt): Promise<boolean> {
 export async function agentTransportFindings(now: number): Promise<Finding[]> {
   const rows = await sql<{value:Receipt}[]>`SELECT value FROM settings WHERE key LIKE 'webhook.event.%' AND value->>'accepted'='false'`;
   const stuck = rows.filter(r => now-Date.parse(r.value.queuedAt) >= 30*60_000);
-  return stuck.length ? [{key:'webhook.transport',level:'today',owner:true,title:'AI 自动处理暂时收不到新任务',
-    impact:'交给 AI 处理的告警送不到它那里；恢复之前，这些告警直接发给你',heals:'尚未确认恢复',action:'把这条发给 AI，检查网站服务器到自动化中台的连接',
-    detail:`${stuck.length} 项未送达；${[...new Set(stuck.map(r=>r.value.lastError ?? '尚未投递'))].join('、')}`}]:[];
+  return stuck.length ? [{key:'webhook.transport',level:'today',owner:true,title:'Automatic AI handling cannot receive new tasks right now',
+    impact:'Alerts meant for AI are not reaching it; until this recovers, they come straight to you',heals:'Recovery not confirmed yet',action:'Send this to AI to check the connection from the site server to the automation hub',
+    detail:`${stuck.length} undelivered; ${[...new Set(stuck.map(r=>r.value.lastError ?? 'not delivered yet'))].join(', ')}`}]:[];
 }
 
 /** How many problems under this key were handed to the agent since then: each incident is one event. */
@@ -80,5 +80,5 @@ export async function wakeAgent(f: Finding, now = Date.now()): Promise<boolean> 
 /** Called after the daily follow-up message was generated. No model or separate scheduler here. */
 /** Whether the hub took the day's list. */
 export async function wakeDigest(date: string, count: number): Promise<boolean> {
-  return publish({id:`digest:${date}`,type:"alert.digest",subject:`digest:${date}`,summary:`系统日报 ${date}`,detail:`${count} 项待跟进`,link:new URL("/admin/runs",config.siteUrl).href});
+  return publish({id:`digest:${date}`,type:"alert.digest",subject:`digest:${date}`,summary:`System digest ${date}`,detail:`${count} to follow up`,link:new URL("/admin/runs",config.siteUrl).href});
 }

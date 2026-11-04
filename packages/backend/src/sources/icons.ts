@@ -1,16 +1,14 @@
-// Source icons ("来源图标缓存"): the face a source shows next to its reports and on the hot list.
-// X accounts take the avatar on their latest post; 公众号 the account avatar on their latest article
-// page; sites the best icon their home page declares. A source with none keeps its tinted initial.
+// Source icons (the "source icon cache"): the face a source shows next to its reports and on the hot list.
+// X accounts take the avatar on their latest post; sites the best icon their home page declares. A source
+// with none keeps its tinted initial.
 import { sql } from "../db.ts";
 import { guardedFetch, DEFAULT_UA } from "../lib/http-fetch.ts";
 import { produceImage } from "../media/images.ts";
 import { sourceOwnsPost } from "./account.ts";
 
 const BATCH = 200;
-// A site without an icon rarely grows one; 公众号 misses are mostly WeChat turning the server away for a while.
+// A site without an icon rarely grows one.
 const RETRY_DAYS = 30;
-const MP_RETRY_DAYS = 3;
-const MP_PAUSE_MS = 3000;
 
 /** X accounts: the avatar on the account's own latest post, kept current as avatars change. */
 async function refreshXAvatars(): Promise<number> {
@@ -28,10 +26,10 @@ async function refreshXAvatars(): Promise<number> {
   return rows.length;
 }
 
-/** A page's HTML; 公众号 article pages run to several megabytes, home pages rarely past four. */
-async function page(url: string, maxBytes = 4_000_000): Promise<{ html: string; url: string } | null> {
+/** A page's HTML; home pages rarely run past four megabytes. */
+async function page(url: string): Promise<{ html: string; url: string } | null> {
   try {
-    const res = await guardedFetch(url, { timeoutMs: 15_000, maxBytes, headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" } });
+    const res = await guardedFetch(url, { timeoutMs: 15_000, maxBytes: 4_000_000, headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" } });
     return res.status === 200 ? { html: res.text(), url: res.url } : null;
   } catch {
     return null;
@@ -92,17 +90,7 @@ function homeOf(articleUrls: string[], config: Record<string, unknown>): string 
   }
 }
 
-async function findIcon(kind: string, articleUrls: string[], config: Record<string, unknown>): Promise<string | null> {
-  if (kind === "mp_account") {
-    // WeChat answers bursts with "未知错误": take the account's two latest articles, slowly.
-    for (const url of articleUrls.slice(0, 2)) {
-      await new Promise((r) => setTimeout(r, MP_PAUSE_MS));
-      const p = await page(url, 10_000_000);
-      const avatar = p && /round_head_img\s*[:=]\s*["']([^"']+)["']/.exec(p.html)?.[1];
-      if (avatar) return firstUsable([avatar.replace(/^http:/, "https:")]);
-    }
-    return null;
-  }
+async function findIcon(articleUrls: string[], config: Record<string, unknown>): Promise<string | null> {
   const home = homeOf(articleUrls, config);
   return home ? siteIcon(home) : null;
 }
@@ -113,19 +101,19 @@ export async function siteIcon(home: string): Promise<string | null> {
   return firstUsable(p ? iconCandidates(p.html, p.url) : [new URL("/favicon.ico", home).toString()]);
 }
 
-/** Sites and 公众号 without an icon: a batch per run, looking again after RETRY_DAYS (公众号: MP_RETRY_DAYS). */
+/** Sites without an icon: a batch per run, looking again after RETRY_DAYS. */
 async function findMissingIcons(): Promise<{ checked: number; found: number }> {
-  const due = await sql<{ id: string; kind: string; config: Record<string, unknown>; urls: string[] | null }[]>`
-    SELECT s.id, s.kind, s.config, a.urls
+  const due = await sql<{ id: string; config: Record<string, unknown>; urls: string[] | null }[]>`
+    SELECT s.id, s.config, a.urls
     FROM sources s
     LEFT JOIN LATERAL (SELECT array_agg(url) AS urls FROM (SELECT url FROM articles WHERE source_id = s.id ORDER BY discovered_at DESC LIMIT 10) r) a ON true
     WHERE s.icon_url IS NULL AND s.kind <> 'x_search'
-      AND (s.icon_checked_at IS NULL OR s.icon_checked_at < now() - make_interval(days => CASE WHEN s.kind = 'mp_account' THEN ${MP_RETRY_DAYS}::int ELSE ${RETRY_DAYS}::int END))
+      AND (s.icon_checked_at IS NULL OR s.icon_checked_at < now() - make_interval(days => ${RETRY_DAYS}::int))
     ORDER BY s.icon_checked_at NULLS FIRST, s.id
     LIMIT ${BATCH}`;
   let found = 0;
   for (const s of due) {
-    const icon = await findIcon(s.kind, s.urls ?? [], s.config ?? {}).catch(() => null);
+    const icon = await findIcon(s.urls ?? [], s.config ?? {}).catch(() => null);
     if (icon) found++;
     await sql`UPDATE sources SET icon_url = coalesce(${icon}, icon_url), icon_checked_at = now() WHERE id = ${s.id}`;
   }

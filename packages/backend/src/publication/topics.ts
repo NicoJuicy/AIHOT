@@ -2,7 +2,7 @@
 // pack (industry/topics.json) and read from there when the process starts. Which reports a topic takes
 // is one SQL predicate, `membership`: a direction or a form takes its tags; a company takes the reports
 // it is a subject of, but not those that only mention it — among several subject companies, its name must
-// appear in the Chinese or the original title. Lists and counts read the selected set one report per
+// appear in the written or the original title. Lists and counts read the selected set one report per
 // fact, as v1 and RSS do.
 import type { CategoryKey } from "@aihot/contracts/taxonomy";
 import type {
@@ -307,7 +307,7 @@ export async function topicPageCounts(now?: Date, revisions = false): Promise<To
 
 const poolCounts = new Map<string, Cached<number>>();
 
-/** Every listed report of the topic, selected or not (收录). */
+/** Every listed report of the topic, selected or not (collected). */
 function poolTotal(t: Topic, now?: Date): Promise<number> {
   const read = async (at: Date) => (await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM publications p WHERE ${listedCondition(at)} AND ${inTopic(t)}`)[0]?.n ?? 0;
   if (now) return read(now);

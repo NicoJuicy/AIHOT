@@ -56,13 +56,13 @@ test("an unmatchable translated layout stays intact, is not a follow-up and does
   const input = { sourceId, url: base + "/blocked", title: "blocked", bodyText: "The model is available.", bodyHtml: "<p>The model is available.</p>", bodyStatus: "ok" as const, via: "fetch" as const, publishedAt };
   const { articleId } = await upsertMaterial(input);
   await sql`INSERT INTO translations(article_id,lang,revision,body_html,body_text,complete,origin)
-    VALUES (${articleId},'zh',1,'<p>模型已开放。</p>','模型已开放。',true,'model')`;
+    VALUES (${articleId},'zh',1,'<p>Model now open to all.</p>','Model now open to all.',true,'model')`;
   await sql`UPDATE articles SET processing_state='analyzed',grouping_status='complete' WHERE id=${articleId}`;
   const result = await collectSource(sourceId);
   assert.equal(result.status, "ok");
   assert.equal(result.created, 1, "the article behind the failed refresh is still collected");
   const [row] = await sql`SELECT a.body_html,a.revision,a.processing_state,a.processing_error,t.body_html AS translated FROM articles a JOIN translations t ON t.article_id=a.id WHERE a.id=${articleId}`;
-  assert.deepEqual({ ...row }, { body_html: input.bodyHtml, revision: 1, processing_state: 'analyzed', processing_error: null, translated: '<p>模型已开放。</p>' });
+  assert.deepEqual({ ...row }, { body_html: input.bodyHtml, revision: 1, processing_state: 'analyzed', processing_error: null, translated: '<p>Model now open to all.</p>' });
   // 10-19..10-29: all eight such follow-ups were the same wording with a link added or tags nested
   // differently, closed as accepted; the consistent version kept is the answer, there is nothing to do.
   assert.equal((await collectFindings()).some(f => f.key.startsWith("sources.") && f.key.endsWith(`.${sourceId}`)), false);

@@ -1,8 +1,8 @@
 // Generates the report nameplates (site/brand/nameplates/*.svg and index.json): the subject word
-// from site/site.ts (in the accent) and the Chinese title, set solid in Noto Sans SC Black
-// (SIL OFL 1.1) as SVG paths, so the nameplate is one static logotype on every system. The Latin
-// capitals are scaled to stand as tall as the Chinese glyphs, both centred on one line, and the spacing
-// is set by ink, pair by pair.
+// from site/site.ts (in the accent) and the title, set solid in Noto Sans SC Black (SIL OFL 1.1) as
+// SVG paths, so the nameplate is one static logotype on every system. Latin letters are scaled to stand
+// as tall as any Chinese glyphs, both centred on one line; the spacing is set by ink, pair by pair, with
+// a word space between Latin parts.
 //
 // Usage: node scripts/nameplates.ts <@fontsource/noto-sans-sc package directory>
 //   (fetch it with `npm pack @fontsource/noto-sans-sc@5.3.0` and untar; it is not a dependency)
@@ -14,7 +14,7 @@ import { SITE } from "@aihot/site";
 const pkg = process.argv[2];
 if (!pkg) throw new Error("usage: node scripts/nameplates.ts <noto-sans-sc package dir>");
 
-/** Ink height of the Chinese glyphs, in the nameplate's units. */
+/** Ink height of Chinese glyphs, in the nameplate's units. */
 const H = 220;
 /** Latin capitals a touch shorter than the ideographs, which read larger. */
 const CAPS = H * 0.94;
@@ -26,24 +26,26 @@ function gap(a: string, b: string): number {
   if (isLatin(a) !== isLatin(b)) return H * 0.17;
   return H * 0.085;
 }
+/** Space between two Latin words. */
+const WORD = H * 0.25;
 
 const S = SITE.subject;
 const NAMEPLATES: Record<string, Array<{ text: string; accent: boolean }>> = {
   daily: [
     { text: S, accent: true },
-    { text: "日报", accent: false },
+    { text: "Daily", accent: false },
   ],
   weekly: [
     { text: S, accent: true },
-    { text: "周报", accent: false },
+    { text: "Weekly", accent: false },
   ],
   monthly: [
     { text: S, accent: true },
-    { text: "月报", accent: false },
+    { text: "Monthly", accent: false },
   ],
   archive: [
-    { text: "日报", accent: false },
-    { text: "合订本", accent: true },
+    { text: "Daily", accent: false },
+    { text: "Archive", accent: true },
   ],
 };
 
@@ -65,7 +67,7 @@ function fontFor(ch: string): opentype.Font {
   return fonts.get(face.file)!;
 }
 
-// One scale for all the Chinese glyphs and one for the capitals, from their union ink at 1000 units;
+// One scale for all the Chinese glyphs and one for the Latin letters, from their union ink at 1000 units;
 // both are centred on the same line.
 const chars = [...new Set(Object.values(NAMEPLATES).flatMap((parts) => parts.flatMap((p) => [...p.text])))];
 const boxes = new Map(chars.map((ch) => [ch, fontFor(ch).getPath(ch, 0, 0, 1000).getBoundingBox()]));
@@ -75,8 +77,9 @@ function fit(group: string[], height: number) {
   const size = (1000 * height) / (bottom - top);
   return { size, baseline: -((top + bottom) / 2) * (size / 1000) };
 }
-const cjk = fit(chars.filter((ch) => !isLatin(ch)), H);
-const latin = chars.some(isLatin) ? fit(chars.filter(isLatin), CAPS) : cjk;
+const han = chars.filter((ch) => !isLatin(ch));
+const cjk = han.length ? fit(han, H) : null;
+const latin = chars.some(isLatin) ? fit(chars.filter(isLatin), CAPS) : cjk!;
 
 const out: Record<string, { viewBox: string; accent: string; ink: string }> = {};
 for (const [name, parts] of Object.entries(NAMEPLATES)) {
@@ -85,11 +88,11 @@ for (const [name, parts] of Object.entries(NAMEPLATES)) {
   let x = MARGIN;
   let prev: string | null = null;
   for (const part of parts) {
-    for (const ch of part.text) {
-      const { size, baseline } = isLatin(ch) ? latin : cjk;
+    for (const [i, ch] of [...part.text].entries()) {
+      const { size, baseline } = isLatin(ch) ? latin : cjk!;
       const box = boxes.get(ch)!;
       const scale = size / 1000;
-      if (prev) x += gap(prev, ch);
+      if (prev) x += i === 0 && isLatin(prev) && isLatin(ch) ? WORD : gap(prev, ch);
       const origin = x - box.x1 * scale;
       (part.accent ? accent : ink).push(fontFor(ch).getPath(ch, origin, baseline, size).toPathData(1));
       x = origin + box.x2 * scale;

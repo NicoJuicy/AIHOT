@@ -89,7 +89,7 @@ async function fetchListingText(source: SourceRow): Promise<{ text: string; viaJ
 }
 
 /** A listing title that is no headline: a label that swallowed its summary, or a call to action. */
-export const isCallToActionTitle = (title: string) => /^(read more|read the blog|learn more|continue reading|more|阅读全文|阅读更多|查看详情|了解更多)$/i.test(title.trim());
+export const isCallToActionTitle = (title: string) => /^(read more|read the blog|learn more|continue reading|more)$/i.test(title.trim());
 export const needsTitle = (title: string) => title.length > 100 || isCallToActionTitle(title);
 
 /** Image destinations may contain balanced parentheses, including inside a linked card. */
@@ -180,10 +180,10 @@ export function fromHtml(html: string, base: string, source: SourceRow): Candida
   return out;
 }
 
-/** A changelog heading that is only a date, bare or after a short label: "时间: 2026-09-10", "时间：2024-05-17". */
-const DATE_HEADING = /^(?:[^\d:：]{1,12}[:：])?\s*(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?$/;
+/** A changelog heading that is only a date, bare or after a short label: "2026-09-10", "Date: 2024-05-17". */
+const DATE_HEADING = /^(?:[^\d:]{1,12}:)?\s*(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/;
 
-/** The day a date heading names, at midnight in the source's offset (Date.parse would read "时间: …" in the host's zone). */
+/** The day a date heading names, at midnight in the source's offset (Date.parse would read "Date: …" in the host's zone). */
 function headingDate(title: string, utcOffset = "+08:00"): PublicationDate | undefined {
   const m = DATE_HEADING.exec(title);
   if (!m) return undefined;
@@ -302,7 +302,7 @@ function scriptString(literal: string): string {
 
 /**
  * mimo.xiaomi.com (config.adapter "mimo_home"). The homepage's post rows navigate by script: its HTML has
- * their titles but no links, so the generic parse found only the menu (MiMo Desktop, 简体中文, #paper).
+ * their titles but no links, so the generic parse found only the menu (MiMo Desktop, the language switcher, #paper).
  * The rows are a prop of the homepage's own chunk, `sectionTitle:"Blog", … blogs:[{title:"…",
  * link:"/blog/…", desc:"…"}, …]`; the site's route table names the chunks of path "/" and the runtime's
  * chunk map their files, both in the scripts the homepage loads. A homepage that no longer looks like

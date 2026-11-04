@@ -1,6 +1,6 @@
 -- Search over the public pool (/all, v1 q=): one narrow row per eligible item, kept by the publish
 -- step. `direct` is the title/summary/subject/source text (the default search); `body` is the start
--- of the lower-cased body for items whose full text may be shown (the "全文相关" search). Trigram
+-- of the lower-cased body for items whose full text may be shown (the "full-text match" search). Trigram
 -- indexes serve terms of three or more characters; shorter ones scan this small table instead of
 -- every publication and article.
 CREATE TABLE pool_search (

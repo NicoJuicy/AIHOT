@@ -1,7 +1,7 @@
 // First-party site API (/api/site/*). Not a public API: it may evolve with the website,
 // but it is served from the same public read layer as v1, RSS and MCP.
 import type { CategoryKey, ChannelKey } from "./taxonomy.ts";
-import { isoWeekRange, monthDay } from "./time.ts";
+import { isoWeekRange, monthDay, monthName } from "./time.ts";
 
 export interface SourceRef {
   /** The name readers see (publication/rules.ts publicSourceName), as is every source name here. */
@@ -71,8 +71,8 @@ export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "sum
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
   /**
-   * A selected report whose fact is represented by another report (全部动态 and search): that report,
-   * so the card can say "同一件事，精选收录的是《…》" instead of claiming a seat of its own.
+   * A selected report whose fact is represented by another report (All items and search): that report,
+   * so the card can say "Same story; the picks carry '…'" instead of claiming a seat of its own.
    */
   sameEvent?: { id: string; title: string } | null;
 }
@@ -145,7 +145,7 @@ export interface OutlineEntry {
 export interface SiteItemDetail extends ItemSummary {
   /** The post with all its media; its text is the body. */
   x: Omit<XPostView, "text" | "translation"> | null;
-  /** Selected, but its fact's seat is held by this report: marked 同事件, without a reason of its own. */
+  /** Selected, but its fact's seat is held by this report: marked "same story", without a reason of its own. */
   sameEvent?: { id: string; title: string } | null;
   readingMode: "full" | "summary-only";
   author: string | null;
@@ -162,7 +162,7 @@ export interface SiteItemDetail extends ItemSummary {
   bodyLanguage: "zh" | "original";
 }
 
-/** A fact's public reports under the list's filters: what "另外 N 家也报道了" opens. */
+/** A fact's public reports under the list's filters: what "also covered by N other sources" opens. */
 export interface GroupReport {
   id: string;
   title: string;
@@ -278,14 +278,14 @@ export interface StoryDetail {
 export type ReportKind = "daily" | "weekly" | "monthly";
 
 /** What each kind of report is called. */
-export const REPORT_NAMES: Record<ReportKind, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
+export const REPORT_NAMES: Record<ReportKind, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly" };
 
-/** An issue's date as Chinese readers write and search it: "10月17日", "10月12日—18日" (or "9月28日—10月4日"), "2026年10月". */
+/** An issue's date as readers write and search it: "Oct 17", "Oct 12–18" (or "Sep 28 – Oct 4"), "Oct 2026". */
 export function reportDateLabel(kind: ReportKind, key: string): string {
   if (kind === "daily") return monthDay(key);
-  if (kind === "monthly") return `${key.slice(0, 4)}年${Number(key.slice(5, 7))}月`;
+  if (kind === "monthly") return `${monthName(Number(key.slice(5, 7)))} ${key.slice(0, 4)}`;
   const { start, end } = isoWeekRange(key)!;
-  return `${monthDay(start)}—${start.slice(5, 7) === end.slice(5, 7) ? `${Number(end.slice(8, 10))}日` : monthDay(end)}`;
+  return start.slice(5, 7) === end.slice(5, 7) ? `${monthDay(start)}–${Number(end.slice(8, 10))}` : `${monthDay(start)} – ${monthDay(end)}`;
 }
 
 export interface ReportCitation {
@@ -314,7 +314,7 @@ export interface ReportCitation {
 export interface ReportDetail {
   kind: ReportKind;
   key: string;
-  /** The issue's place among the existing issues of its kind, oldest first ("第 N 期"). */
+  /** The issue's place among the existing issues of its kind, oldest first ("No. N"). */
   issueNumber: number;
   title: string;
   generatedAt: string;
@@ -369,7 +369,7 @@ export interface SiteMeta {
 export interface ChangelogRelease {
   date: string;
   time: string;
-  kind: "更新" | "优化" | "公告" | "下线";
+  kind: "Update" | "Improvement" | "Announcement" | "Retired";
   title: string;
   body: string[];
   /** A notice readers must act on: drawn in the warning red so it cannot be skimmed past. */
@@ -388,7 +388,6 @@ export interface ChangelogResponse {
  * none) and the maker's avatar through the image proxy.
  */
 export interface SiteContact {
-  wechatQr: string | null;
   feishuQr: string | null;
   makerAvatar: string | null;
 }
@@ -397,17 +396,17 @@ export interface SiteContact {
 export interface SiteStats {
   /** Sources collected from now. */
   sources: number;
-  /** Enabled sources by kind: x_search, rss, web_list, mp_account, json_list. */
+  /** Enabled sources by kind: x_search, rss, web_list, json_list. */
   sourceKinds: Record<string, number>;
   /** Everything collected and not withdrawn, heat-only sources included. */
   items: number;
   selected: number;
   dailies: number;
-  /** The last 24 hours: items found (heat-only sources included), and items that made 精选 (by their place on the timeline). */
+  /** The last 24 hours: items found (heat-only sources included), and items that made the picks (by their place on the timeline). */
   day: { collected: number; selected: number };
   /** Enabled sources in a daily shuffle, for the about page's river: one line per source. */
   sampleSources: Array<{ name: string; kind: string; heatOnly: boolean }>;
-  /** The latest 精选, newest first. */
+  /** The latest picks, newest first. */
   latest: Array<{ id: string; title: string; source: string }>;
 }
 

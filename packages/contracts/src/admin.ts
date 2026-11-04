@@ -377,7 +377,7 @@ export interface AdminBudget {
 }
 
 export interface AdminSettings {
-  contact: { wechatQr: string | null; feishuQr: string | null };
+  contact: { feishuQr: string | null };
   targets: AdminNotifyTarget[];
   budgets: AdminBudget[];
 }

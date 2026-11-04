@@ -249,13 +249,13 @@ test("paid search receipts and coverage commit together for single sources and s
   }
 });
 
-// Names show the account in many ways ("X：某人（@handle）" ends in a full-width bracket), so an account
+// Names show the account in many ways ("X: Someone（@handle）" ends in a full-width bracket), so an account
 // found by its name's last "(@handle)" never took its posts' avatar.
 test("an account takes the avatar on its own latest post, whatever its name shows", async () => {
   const handle = `sd${T}`;
   const id = `test-xs-${handle}`;
   await sql`INSERT INTO sources (id, name, kind, config, next_fetch_at)
-            VALUES (${id}, ${`X：某人（@${handle}）`}, 'x_search', ${sql.json({ query: `from:${handle} -filter:replies` })}, '2100-01-01')`;
+            VALUES (${id}, ${`X: Someone（@${handle}）`}, 'x_search', ${sql.json({ query: `from:${handle} -filter:replies` })}, '2100-01-01')`;
   const post = (n: bigint, author: string, avatarUrl: string, minutesAgo: number) => upsertMaterial({
     sourceId: id, url: `https://x.com/${author}/status/${BASE + n}`, title: `Post ${n}`, via: "fetch", discoveredAt: new Date(Date.now() - minutesAgo * 60_000),
     xPost: { tweetId: String(BASE + n), authorName: author, handle: author, avatarUrl, text: `Post ${n} ${T}` },

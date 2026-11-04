@@ -14,13 +14,13 @@ import { audit } from "../audit.ts";
 const MAX_QR_BYTES = 2 * 1024 * 1024;
 
 export async function replaceContactQr(input: { slot: keyof ContactSettings; data: Buffer }, actor: string) {
-  if (input.slot !== "wechatQr" && input.slot !== "feishuQr") throw new Error("unknown slot");
-  if (input.data.length > MAX_QR_BYTES) throw new Error("二维码图片最大 2MB");
+  if (input.slot !== "feishuQr") throw new Error("unknown slot");
+  if (input.data.length > MAX_QR_BYTES) throw new Error("The QR code image can be at most 2 MB");
   const meta = await sharp(input.data).metadata().catch(() => null);
-  if (!meta || !["png", "jpeg", "webp"].includes(meta.format ?? "")) throw new Error("需要 PNG、JPG 或 WebP 图片");
-  if ((meta.width ?? 0) < 120 || (meta.height ?? 0) < 120) throw new Error("图片太小，二维码可能扫不出来");
+  if (!meta || !["png", "jpeg", "webp"].includes(meta.format ?? "")) throw new Error("A PNG, JPG or WebP image is required");
+  if ((meta.width ?? 0) < 120 || (meta.height ?? 0) < 120) throw new Error("The image is too small; the QR code may not scan");
   const ext = meta.format === "jpeg" ? "jpg" : meta.format!;
-  const name = `qr-${input.slot === "wechatQr" ? "wechat" : "feishu"}-${sha256(input.data).slice(0, 8)}.${ext}`;
+  const name = `qr-feishu-${sha256(input.data).slice(0, 8)}.${ext}`;
   const dir = path.join(config.dataDir, "uploads");
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, name), input.data);

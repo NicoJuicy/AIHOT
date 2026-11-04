@@ -1,5 +1,5 @@
 /**
- * Copies text; in-app browsers without the async clipboard (WeChat and the like) fall back to a selection
+ * Copies text; in-app browsers without the async clipboard fall back to a selection
  * copy. Rejects when neither copies.
  */
 export async function copyText(text: string): Promise<void> {

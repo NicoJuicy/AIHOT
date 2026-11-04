@@ -1,7 +1,7 @@
 // Collection run for one source: fetch listing → filter → store material → enqueue processing.
 // A failed fetch never advances the success cursor; the source's health reflects consecutive failures.
 import { sql, type Db } from "../db.ts";
-import { fillScheduledPublications, FUTURE_TOLERANCE_MS, identityKeyFor, materialIdentityForUrl, reuseExternalMaterialIdentities, STALE_ON_DISCOVERY_MS, upsertMaterial } from "../content/materials.ts";
+import { fillScheduledPublications, FUTURE_TOLERANCE_MS, identityKeyFor, reuseExternalMaterialIdentities, STALE_ON_DISCOVERY_MS, upsertMaterial } from "../content/materials.ts";
 import { PresentationMismatch } from "../content/presentation.ts";
 import { HttpStatusError } from "../lib/http-fetch.ts";
 import { identityKeyForUrl } from "../lib/url.ts";
@@ -76,11 +76,9 @@ export async function listingEntries(source: SourceRow, found: Candidate[]): Pro
   const unreliableDates = source.config.detail?.publishedAtAuthoritative === true;
   const unique = new Map<string, CollectionCandidate>();
   for (const c of candidates) {
-    const requestedIdentity = c.identityKey
+    const identityKey = c.identityKey
       ?? (source.config.preserveUrlFragment === true ? identityKeyForUrl(c.url, { keepFragment: true }) : null)
       ?? identityKeyFor({ ...c, sourceId: source.id, via: "fetch" });
-    const identityKey = requestedIdentity === identityKeyForUrl(c.url)
-      ? await materialIdentityForUrl(c.url) ?? requestedIdentity : requestedIdentity;
     if (!unique.has(identityKey)) unique.set(identityKey, { ...c, identityKey, ...(unreliableDates ? { publishedAt: null, publicationTime: null } : {}) });
   }
   return [...unique.values()];
@@ -311,8 +309,8 @@ export async function collectSource(sourceId: string, opts: { force?: boolean; x
   const source = await loadSource(sourceId);
   if (!source) return { sourceId, status: "skipped", found: 0, created: 0, revised: 0, error: "missing" };
   if (!source.enabled && !opts.force) return { sourceId, status: "skipped", found: 0, created: 0, revised: 0, error: "paused" };
-  if (source.kind === "mp_account" || source.kind === "external") {
-    // WeChat accounts are reconciled by the mp job; external sources only receive reports.
+  if (source.kind === "external") {
+    // External sources only receive reports.
     return { sourceId, status: "skipped", found: 0, created: 0, revised: 0 };
   }
 
@@ -513,7 +511,7 @@ async function scheduleXShards(): Promise<number> {
   return enqueued;
 }
 
-/** Every minute: enqueue due sources (enabled, not WeChat/external), oldest due first; X accounts by shard. */
+/** Every minute: enqueue due sources (enabled, not external), oldest due first; X accounts by shard. */
 export async function scheduleDueSources(): Promise<{ enqueued: number; shards: number }> {
   const rows = await sql<{ id: string }[]>`
     SELECT id FROM sources
@@ -567,7 +565,7 @@ export async function adaptIntervals(): Promise<{ updated: number }> {
 /**
  * A source's uses just changed: from now it waits no longer than they allow, and no longer than that for its next
  * read. A faster pace it already has stays, and a paid listing still waits its hour; the next daily adaptation
- * weighs its output as usual. Kinds read on another trigger (WeChat accounts, outside reports) keep theirs.
+ * weighs its output as usual. Outside reports, which are not read, keep theirs.
  */
 export async function applyUsePace(id: string): Promise<void> {
   const [s] = await sql<{ uses: string[]; interval_minutes: number; paid_listing: boolean }[]>`

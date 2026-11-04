@@ -2,7 +2,7 @@
 // Production, 2026-10-02: a strong lock, a whole-table backfill and a plain index build inside one migration
 // transaction blocked public reads and writes for two minutes.
 export const FIRST_ONLINE_MIGRATION = 55;
-export type MigrationPlan = { kind: "transaction" | "validation" | "statistics" } | { kind: "index"; index: string; table: string };
+export type MigrationPlan = { kind: "transaction" | "validation" | "statistics" } | { kind: "index"; index: string; table: string } | { kind: "drop-index"; index: string };
 
 // Keep quoted values opaque, including their semicolons and comment markers. SQL bodies are not in
 // the accepted vocabulary; rejecting them also prevents hiding writes in DO or function definitions.
@@ -77,6 +77,13 @@ export function migrationPlan(text: string): MigrationPlan {
     const match = indexStart.exec(sql);
     if (!match) throw new Error("indexes require CREATE INDEX CONCURRENTLY IF NOT EXISTS");
     return { kind: "index", index: match[2], table: match[3].replace(/ \. /g, ".") };
+  }
+  // An index nothing reads: a concurrent drop waits for the transactions using the table without blocking
+  // their reads or writes. One index and no CASCADE, so a constraint that depends on it fails the migration.
+  if (/^drop index\b/i.test(sql)) {
+    const match = new RegExp(`^drop index concurrently if exists (${RELATION})$`, "i").exec(sql);
+    if (!match) throw new Error("indexes are dropped one at a time with DROP INDEX CONCURRENTLY IF EXISTS");
+    return { kind: "drop-index", index: match[1].replace(/ \. /g, ".") };
   }
   if (new RegExp(`^alter table ${RELATION} validate constraint ${IDENT}$`, "i").test(sql)) return { kind: "validation" };
   // These take SHARE UPDATE EXCLUSIVE, which permits ordinary reads and writes. Keep ANALYZE

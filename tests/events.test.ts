@@ -18,7 +18,7 @@ import { publishArticle } from "@aihot/backend/publication/publish";
 
 const T = tag();
 const SOURCE = `test-events-${T}`;
-const FACT_TITLE = `测试事件${T}发布新模型`;
+const FACT_TITLE = `Test story ${T} releases a new model`;
 
 // The model calls the first candidate the same occurrence (and, asked about a pair, agrees), but
 // only once the test lets it answer; the same stub serves the judge and the review model.
@@ -35,11 +35,11 @@ const provider = await stub(async (_hit, req) => {
   await hold.promise;
   const body = JSON.parse(req.body) as { messages: Array<{ content: string }> };
   const user = body.messages[1]!.content;
-  const pair = user.includes("报道 A");
-  const ids = [...user.matchAll(/【候选 (C\d+)】/g)].map((m) => m[1]!);
+  const pair = user.includes("[Report A]");
+  const ids = [...user.matchAll(/\[Candidate (C\d+)\]/g)].map((m) => m[1]!);
   const answer = pair
-    ? { a: "发布", b: "发布", relation: pairRelation ?? relation, difference: "", confidence: 0.95 }
-    : { query: "发布新模型", decisions: ids.map((id, index) => ({ id, relation: answerAll || index === 0 ? relation : "UNRELATED", confidence: 0.95, note: "" })), selection: { addsValue: true, reason: "fixture news" } };
+    ? { a: "release", b: "release", relation: pairRelation ?? relation, difference: "", confidence: 0.95 }
+    : { query: "release a new model", decisions: ids.map((id, index) => ({ id, relation: answerAll || index === 0 ? relation : "UNRELATED", confidence: 0.95, note: "" })), selection: { addsValue: true, reason: "fixture news" } };
   return { id: "stub", choices: [{ message: { content: JSON.stringify(answer) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } };
 });
 for (const name of ["DEEPSEEK", "XIAOMI_MIMO"]) {
@@ -68,12 +68,12 @@ function randomText() {
   return String.fromCharCode(...chars);
 }
 
-async function report(suffix: string, title = FACT_TITLE, summary = "摘要", publishedAt = new Date()) {
+async function report(suffix: string, title = FACT_TITLE, summary = "Summary", publishedAt = new Date()) {
   const { articleId } = await upsertMaterial({
     sourceId: SOURCE, url: `https://example.com/events-${T}-${suffix}`, title: `Model launch ${T} ${suffix}`, bodyText: "A new model.", bodyStatus: "ok", via: "fetch", publishedAt,
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
-            VALUES (${articleId}, 1, 'rule', 'pass', 'ai-models', ${title}, ${summary}, 80, false, ${sql.json({ fact: { title, subject: "测试", action: "发布", object: "模型" } })})`;
+            VALUES (${articleId}, 1, 'rule', 'pass', 'ai-models', ${title}, ${summary}, 80, false, ${sql.json({ fact: { title, subject: "Test", action: "release", object: "model" } })})`;
   await publishArticle(articleId);
   return articleId;
 }
@@ -421,8 +421,8 @@ test("a composite first, with no candidates, stays standalone and cannot become 
 test("a composite arriving after independent products only mentions them even when the model calls both the same occurrence", async () => {
   hold = gate(); hold.open();
   const text = randomText();
-  const one = await storyWithRoot(`${text}甲`, "composite-product-a");
-  const two = await storyWithRoot(`${text}乙`, "composite-product-b");
+  const one = await storyWithRoot(`${text} A`, "composite-product-a");
+  const two = await storyWithRoot(`${text} B`, "composite-product-b");
   const id = await report("composite-last", text, text);
   await setScope(id, "composite");
   answerAll = true;
@@ -472,13 +472,13 @@ test("ROUNDUP answers describe a pair, not the single query's identity; grounded
   const text = randomText();
   await storyWithRoot(text, "roundup-pair-candidate");
   const id = await report("single-roundup-pair", text, text);
-  await setScope(id, "single", { title: text, subject: "测试", action: "发布", object: "模型", evidence: "A new model.", conditions: [{ text: "仅预览用户", quote: "Preview users only." }] });
+  await setScope(id, "single", { title: text, subject: "Test", action: "release", object: "model", evidence: "A new model.", conditions: [{ text: "Preview users only", quote: "Preview users only." }] });
   relation = "ROUNDUP";
   try {
     const result = await groupArticle(id);
     assert.equal(result.verdict, "new-story", "candidate roundup relation cannot reclassify the query");
     const [fact] = await sql`SELECT conditions FROM facts WHERE id = ${result.factId!}`;
-    assert.equal(fact!.conditions, "仅预览用户");
+    assert.equal(fact!.conditions, "Preview users only");
     const [membership] = await sql`SELECT role, evidence FROM fact_articles WHERE article_id = ${id}`;
     assert.equal(membership!.role, "primary", "T1 comes from tier even when old source.first_party is false");
     assert.equal(membership!.evidence, "A new model.\nPreview users only.");
@@ -512,8 +512,8 @@ test("two stories a report ties together merge when both models see one story in
   hold.open();
   const text = randomText();
   // Published a minute apart: which story is older does not depend on the VM's clock never stepping back.
-  const older = await storyWithRoot(`${text}甲`, "older", new Date(Date.now() - 120_000));
-  const newer = await storyWithRoot(`${text}乙`, "newer", new Date(Date.now() - 60_000));
+  const older = await storyWithRoot(`${text} A`, "older", new Date(Date.now() - 120_000));
+  const newer = await storyWithRoot(`${text} B`, "newer", new Date(Date.now() - 60_000));
   relation = "SAME_STORY";
   answerAll = true;
   try {
@@ -564,8 +564,8 @@ test("two stories stay apart when their roots are different events, whatever the
   hold = gate();
   hold.open();
   const text = randomText();
-  const one = await storyWithRoot(`${text}甲`, "one", new Date(Date.now() - 120_000));
-  const two = await storyWithRoot(`${text}乙`, "two", new Date(Date.now() - 60_000));
+  const one = await storyWithRoot(`${text} A`, "one", new Date(Date.now() - 120_000));
+  const two = await storyWithRoot(`${text} B`, "two", new Date(Date.now() - 60_000));
   relation = "SAME_STORY";
   pairRelation = "UNRELATED";
   answerAll = true;
@@ -614,8 +614,8 @@ test("stories that reports keep tying together without merging list each other a
   hold = gate();
   hold.open();
   const text = randomText();
-  const one = await storyWithRoot(`${text}甲`, "related-one");
-  const two = await storyWithRoot(`${text}乙`, "related-two");
+  const one = await storyWithRoot(`${text} A`, "related-one");
+  const two = await storyWithRoot(`${text} B`, "related-two");
   const links = async () =>
     (await sql<{ story_id: number; other_id: number; relation: string }[]>`
       SELECT story_id, other_id, relation FROM story_links WHERE story_id IN (${one.storyId}, ${two.storyId}) ORDER BY story_id`)

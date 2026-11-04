@@ -74,22 +74,15 @@ test("relevance retains combined filters and literal LIKE characters", async () 
   assert.deepEqual((await loadPool(query("qx%_\\z"))).items.map(item => item.id), [id("literal")]);
 });
 
-test("search terms split where Han meets a Latin word, not before digits", () => {
-  assert.deepEqual(searchTerms("多模态RAG"), ["多模态", "rag"]);
-  assert.deepEqual(searchTerms("claude code更新 gpt-5 deepseek v4"), ["claude", "code", "更新", "gpt-5", "deepseek", "v4"]);
-  assert.deepEqual(searchTerms("v4版本"), ["v4", "版本"]);
-  assert.deepEqual(searchTerms("10月"), ["10月"]);
-});
-
 test("public search needs a plain Latin term to start a word in the body", async () => {
   await add("kv-word", "", "a kv pipeline");
-  await add("kv-han", "", "多模态kv系统");
+  await add("kv-punct", "", "multimodal/kv system");
   await add("kv-inside", "", "an mkv file");
   await add("kv-direct", "mkv", "");
   const found = async (q: string) => (await sql<{ article_id: string }[]>`
     SELECT p.article_id FROM publications p WHERE p.source_id = ${T} ${publicMatchCondition(searchTerms(q))}`)
     .map(r => r.article_id).sort();
-  assert.deepEqual(await found("kv"), ["kv-direct", "kv-han", "kv-word"].map(id).sort());
+  assert.deepEqual(await found("kv"), ["kv-direct", "kv-punct", "kv-word"].map(id).sort());
 });
 
 test("equal relevance ranks a seated selected item, then the higher score, then the newest", async () => {
