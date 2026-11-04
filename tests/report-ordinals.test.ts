@@ -1,4 +1,4 @@
-// Issue numbers ("第 N 期") count every existing issue of a kind; the navigation keeps only the newest
+// Issue numbers ("No. N") count every existing issue of a kind; the navigation keeps only the newest
 // 400. Failure cases: the 401st issue numbered from the truncated index (the newest shows 400, older
 // ones none); the index, detail, navigation, latest page and month answers disagreeing; a new issue or
 // a revision renumbering the older ones; dailies, weeklies and monthlies sharing one count; the v1
@@ -22,8 +22,8 @@ let monthly: string[];
 const day = (offset: number) => new Date(Date.UTC(year, 0, 4 + offset)).toISOString().slice(0, 10);
 
 async function insert(kind: ReportKind, keys: string[]) {
-  const citation = { title: `测试条目 ${T}`, summary: `DETAIL_ONLY_${T}` };
-  const content = { fixtureTag: T, overview: `DETAIL_ONLY_${T}`, ...(kind === "daily" ? { sections: [{ label: "测试", items: [citation] }] } : { themes: [{ heading: "测试", storyRefs: [citation] }] }) };
+  const citation = { title: `Test entry ${T}`, summary: `DETAIL_ONLY_${T}` };
+  const content = { fixtureTag: T, overview: `DETAIL_ONLY_${T}`, ...(kind === "daily" ? { sections: [{ label: "Test", items: [citation] }] } : { themes: [{ heading: "Test", storyRefs: [citation] }] }) };
   await sql`INSERT INTO reports ${sql(keys.map((key) => ({
     kind, key, window_start: new Date("2026-01-01T00:00:00Z"), window_end: new Date("2026-01-02T00:00:00Z"),
     generated_at: new Date("2026-01-02T00:00:00Z"), origin: "manual", content: sql.json(content),

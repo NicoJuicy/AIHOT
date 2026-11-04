@@ -55,7 +55,7 @@ for (const unit of ["epoch_s", "epoch_ms", "text"] as const) {
     assert.equal((await timeline(articles[4]!.id)).published_at?.getTime(), now - 1000);
     assert.ok(articles.every((article) => article.processing_queued_at !== null));
     const queued = await sql`SELECT id FROM pgboss.job WHERE name=${QUEUES.analyze} AND data->>'articleId'=${articles[4]!.id}`;
-    assert.equal(queued.length, 1, "最后一条资料仍进入分析队列");
+    assert.equal(queued.length, 1, "the last item still enters the analysis queue");
     const second = await collectSource(s.id);
     assert.deepEqual([second.status, second.found, second.created, second.revised], ["ok", 5, 0, 0]);
   });
@@ -155,7 +155,7 @@ test("unrelated storage failures still fail collection visibly", async () => {
   const s = source(`epoch-db-error-${T}`, "epoch_s", [Math.floor(Date.now() / 1000)]);
   await saveSource(s);
   const constraint = `epoch_test_reject_${T}`;
-  // 仅对本测试信源加临时约束，确保真实数据库错误仍按原有路径报告。
+  // A temporary constraint on this test's source only, so a real database error is still reported along its usual path.
   await sql.unsafe(`ALTER TABLE articles ADD CONSTRAINT "${constraint}" CHECK (source_id <> '${s.id}') NOT VALID`);
   try {
     const result = await collectSource(s.id);

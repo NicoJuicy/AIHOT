@@ -5,9 +5,9 @@ import { describePublicationTime } from "../sources/dates.ts";
 // revision before any step.
 //   1. prefilter: does the material belong to this industry at all (wide recall). Only BLOCK stops an
 //      item; a BLOCK on an original post without text counts as UNKNOWN;
-//   2. score: two independent scores against the source's threshold (tier and class, industry/selection.ts) decide 精选;
+//   2. score: two independent scores against the source's threshold (tier and class, industry/selection.ts) decide the picks;
 //   3. structure: category, tags, subjects and the current news fact, beside scoring;
-//   4. writing, once the structure is in: the Chinese title, summary and reason by the content
+//   4. writing, once the structure is in: the English title, summary and reason by the content
 //      understanding for selected and near-selected items, by the cheaper title/summary prompts for the rest;
 //      copy that uses a word the site keeps from readers (industry/wording.ts) goes back once to change only those.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
@@ -25,7 +25,7 @@ import { buildMaterial, firstImagePart, loadAnalyzeInput, type AnalyzeInputArtic
 import { pageFetchable } from "../content/extract.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import {
-  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, isShortTweetInput, looksZh, MAX_BODY_CHARS, missingEvidence,
+  buildArticlePrompt, buildLongTweetPrompt, buildShortTweetPrompt, finalizeCopy, isShortTweetInput, looksEnglish, MAX_BODY_CHARS, missingEvidence,
   needsShortTweetTranslation, parseTranslateOutput, PREFILTER_SYSTEM, prefilterUser, translateInputOf, UNDERSTAND_SYSTEM, understandUser,
   type IdentityGuard,
 } from "./writing.ts";
@@ -56,7 +56,7 @@ export const SCORE_CALLS = 2;
 /**
  * The threshold on the mean score for a source (industry/selection.ts): its tier's, raised to its
  * class's floor; a class never lowers it. Selected when score1 + score2 >= 2 × threshold. Tiers
- * without a threshold are not scored for 精选.
+ * without a threshold are not scored for the picks.
  */
 export function selectionThreshold(source: { tier: string; selectionClass?: string | null }): number | null {
   const tier = SELECTION.thresholds[source.tier];
@@ -87,12 +87,12 @@ export function scoreInputTime(at: Date): string {
 
 /**
  * The score input: no source facts (the prompt forbids guessing them), the publication time, the
- * original title (items are scored before any Chinese copy exists) and the whole body.
+ * original title (items are scored before any English copy exists) and the whole body.
  */
 export function buildScoreInput(a: AnalyzeInputArticle): string {
   let body: string;
   if (a.xPost) {
-    const quoted = a.xPost.quoted?.text ? `\n\n[引用 ${a.xPost.quoted.handle ? `@${a.xPost.quoted.handle}` : "原推文"}]：${a.xPost.quoted.text}` : "";
+    const quoted = a.xPost.quoted?.text ? `\n\n[Quoting ${a.xPost.quoted.handle ? `@${a.xPost.quoted.handle}` : "original post"}]: ${a.xPost.quoted.text}` : "";
     body = `${String(a.xPost.text ?? "").trim()}${quoted}`.trim();
   } else {
     body = (a.bodyText ?? a.excerpt ?? "").trim();
@@ -100,10 +100,10 @@ export function buildScoreInput(a: AnalyzeInputArticle): string {
   if (!body) body = a.title;
   const at = a.publishedAt;
   return [
-    "请按系统规则评估以下单篇材料所代表的事件。只输出 attentionScore。",
-    `【发布时间（北京时间）】\n${at ? a.publicationTime === undefined || a.publicationTime?.includes("T") ? scoreInputTime(at) : describePublicationTime(at, a.publicationTime) : "未知（收录时间不代表发布时间）"}`,
-    `【标题】\n${a.title.trim()}`,
-    `【完整正文】\n${body.length > MAX_BODY_CHARS ? body.slice(0, MAX_BODY_CHARS) : body}`,
+    "Assess the event the single piece of material below represents, by the system rules. Output only attentionScore.",
+    `[Published (Beijing time)]\n${at ? a.publicationTime === undefined || a.publicationTime?.includes("T") ? scoreInputTime(at) : describePublicationTime(at, a.publicationTime) : "unknown (the time it was collected is not the time it was published)"}`,
+    `[Title]\n${a.title.trim()}`,
+    `[Full text]\n${body.length > MAX_BODY_CHARS ? body.slice(0, MAX_BODY_CHARS) : body}`,
   ].join("\n\n");
 }
 
@@ -116,15 +116,15 @@ const PrefilterSchema = z.object({
 
 const FactSchema = z
   .object({
-    title: z.string().max(80),
-    subject: z.string().max(80).nullable().optional(),
-    action: z.string().max(80).nullable().optional(),
-    object: z.string().max(160).nullable().optional(),
+    title: z.string().max(240),
+    subject: z.string().max(240).nullable().optional(),
+    action: z.string().max(240).nullable().optional(),
+    object: z.string().max(480).nullable().optional(),
     occurredAt: z.string().nullable().optional(),
     evidence: z.string().trim().max(600).nullable().catch(null),
     conditions: z.array(z.object({
       // Older reusable receipts may also contain a paraphrase. New extraction only copies evidence.
-      text: z.string().trim().min(1).max(200).optional().catch(undefined),
+      text: z.string().trim().min(1).max(600).optional().catch(undefined),
       quote: z.string().trim().min(1).max(400),
     }).nullable().catch(null)).catch([]),
   })
@@ -151,16 +151,14 @@ const UnderstandSchema = z.object({
 
 const SummarizeSchema = z.object({ titleZh: z.string(), summaryZh: z.string(), bodyZh: z.string() });
 
-const ZH_COUNT = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
-
 /** The structure step owns the public category and tags, as well as grouping evidence (filled from the pack's vocabulary). */
 export const STRUCTURE_SYSTEM = promptText("structure", {
-  categoryCount: ZH_COUNT[CATEGORIES.length] ?? String(CATEGORIES.length),
+  categoryCount: String(CATEGORIES.length),
   categoryGuide: CATEGORY_GUIDE,
-  categoryTags: CATEGORY_TAGS.join("、"),
-  topicTags: TOPIC_TAGS.join("、"),
-  entityTags: ENTITY_TAGS.join("、"),
-  entities: Object.entries(ENTITIES).map(([id, e]) => `${id}（${e.aliases.slice(0, 3).join("/")}）`).join("，"),
+  categoryTags: CATEGORY_TAGS.join(", "),
+  topicTags: TOPIC_TAGS.join(", "),
+  entityTags: ENTITY_TAGS.join(", "),
+  entities: Object.entries(ENTITIES).map(([id, e]) => `${id} (${e.aliases.slice(0, 3).join("/")})`).join(", "),
 });
 
 /** Keep only quotes present both in the original material and in the text the structure model saw. */
@@ -199,7 +197,7 @@ export interface AnalysisRun {
    * is not scored. `refused`: the model's content filter declined it, so it is not selected.
    */
   scores: { model: string; threshold: number; values: number[]; receiptIds: number[]; reused: boolean; refused?: boolean } | null;
-  /** The reader-facing copy: `understand` (selected, near-selected), `summarize`, `verbatim` (a Chinese short post), `none`. */
+  /** The reader-facing copy: `understand` (selected, near-selected), `summarize`, `verbatim` (an English short post), `none`. */
   writing: {
     kind: "understand" | "summarize" | "verbatim" | "none";
     model: string | null;
@@ -391,9 +389,9 @@ async function mendWording(a: AnalyzeInputArticle, w: NonNullable<AnalysisRun["w
     res = await chatJson({
       model: await modelFor("wording"), purpose: "mend_wording", subject: subjectOf(a), promptVersion: PROMPT_VERSIONS.wording, system: MEND_SYSTEM,
       user: [
-        `来源：${t.sourceName ?? "（未注明）"}`, `原题：${t.title}`,
-        `中文稿：\n${JSON.stringify({ titleZh: w.titleZh, summaryZh: w.summaryZh, reasonZh: w.reasonZh })}`,
-        `问题：\n${problems.map((p) => `- ${p}`).join("\n")}`,
+        `Source: ${t.sourceName ?? "(not stated)"}`, `Original title: ${t.title}`,
+        `English copy:\n${JSON.stringify({ titleZh: w.titleZh, summaryZh: w.summaryZh, reasonZh: w.reasonZh })}`,
+        `Problems:\n${problems.map((p) => `- ${p}`).join("\n")}`,
       ].join("\n\n"),
       schema: MendSchema, temperature: 0.1, maxTokens: 2048, attemptTag: tagged(opts.attemptTag, "wording"),
     });
@@ -422,9 +420,9 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   const short = isShortTweetInput(t);
   const main = collapseWhitespace(t.mainText || t.title);
   const plain = { reasonZh: null, receiptIds: [] as number[], reused: true };
-  // A short post already in Chinese is its own copy, and too little text is not written up from a title.
+  // A short post already in English is its own copy, and too little text is not written up from a title.
   if (short && !needsShortTweetTranslation(main)) return { kind: "verbatim", model: null, titleZh: main, summaryZh: main, ...plain };
-  if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksZh(t.title) ? t.title : "", summaryZh: "", ...plain };
+  if (!short && t.text.trim().length < 20) return { kind: "none", model: null, titleZh: looksEnglish(t.title) ? t.title : "", summaryZh: "", ...plain };
   const route = await modelRoute("summarize");
   checkAnalysisRunning();
   const res = await chatJson({
@@ -443,10 +441,10 @@ async function runSummarize(a: AnalyzeInputArticle, opts: StepOpts): Promise<Non
   });
   const p = res.data;
   const draft = short
-    ? { titleZh: p.titleZh || (looksZh(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
+    ? { titleZh: p.titleZh || (looksEnglish(main) ? main : ""), summaryZh: p.bodyZh || p.summaryZh }
     : isX
       ? { titleZh: p.titleZh, summaryZh: p.summaryZh || p.bodyZh }
-      : { titleZh: p.titleZh || (looksZh(t.title) ? t.title : ""), summaryZh: p.summaryZh };
+      : { titleZh: p.titleZh || (looksEnglish(t.title) ? t.title : ""), summaryZh: p.summaryZh };
   const copy = finalizeCopy(t, draft);
   return { kind: "summarize", model: res.model, titleZh: copy.titleZh, summaryZh: copy.summaryZh, reasonZh: null, identityGuard: copy.identityGuard, receiptIds: [res.receiptId], reused: res.reused };
 }

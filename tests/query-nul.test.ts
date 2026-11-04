@@ -44,7 +44,7 @@ test('MCP rejects NUL searches as invalid input', async () => {
 });
 
 test('ordinary Unicode and literal escape text remain searchable', async () => {
-  for (const query of ['AI模型', 'AI\\u0000', 'AI%00']) {
+  for (const query of ['AI modèle', 'AI\\u0000', 'AI%00']) {
     for (const path of ['/api/site/pool', '/api/v1/items', '/api/v1/agent/search']) {
       const response = await app.inject(`${path}?q=${encodeURIComponent(query)}`);
       assert.equal(response.statusCode, 200, `${path}: ${response.body}`);

@@ -13,7 +13,13 @@ import { markStaleDeliveries } from "../notify/deliver.ts";
 import { awaitingRelease, markStalePendingReceipts, releaseUnknownReceipt } from "../providers/receipts.ts";
 
 const AUTO_RELEASE_AFTER_MS = 30 * 60_000;
-export const AUTO_RELEASE_NOTE = "自动放行：结果未知超过 30 分钟，未核对是否计费";
+export const AUTO_RELEASE_NOTE = "Auto-released: outcome unknown for over 30 minutes; billing not checked";
+/** The same note on receipts auto-released before the site was in English. */
+const OLD_AUTO_RELEASE_NOTE = "自动放行：结果未知超过 30 分钟，未核对是否计费";
+
+/** Whether a receipt attempt's error column records an automatic release. */
+export const autoReleased = (error: ReturnType<typeof sql>) =>
+  sql`(${error} LIKE ${AUTO_RELEASE_NOTE + "%"} OR ${error} LIKE ${OLD_AUTO_RELEASE_NOTE + "%"})`;
 
 async function release(id: number, error: string, actor: string, note: string, billed: boolean | null) {
   return sql.begin(async (tx) => {
@@ -31,9 +37,9 @@ export async function releaseReceipt(id: number, input: { billed: boolean | null
   if (input.billed !== null && typeof input.billed !== "boolean") throw new Error("billed must be true, false or null");
   const [row] = await sql<{ status: string }[]>`SELECT status FROM receipts WHERE id = ${id}`;
   if (!row) return null;
-  if (row.status !== "unknown") throw new Conflict("只有结果未知的回执需要人工核对");
-  const error = input.billed === null ? `人工放行：计费未知，按授权恢复。${input.note}`
-    : `人工核对：${input.billed ? "供应商已计费但结果未取回" : "供应商未计费"}。${input.note}`;
+  if (row.status !== "unknown") throw new Conflict("Only receipts with an unknown outcome need a manual check");
+  const error = input.billed === null ? `Released by hand: billing unknown, recovered under authorization. ${input.note}`
+    : `Checked by hand: ${input.billed ? "the provider billed it but the result was not retrieved" : "the provider did not bill it"}. ${input.note}`;
   return release(id, error, actor, input.note, input.billed);
 }
 
@@ -46,12 +52,12 @@ export async function autoReleaseUnknownReceipts(now = Date.now()) {
   const rows = await sql<{ id: number }[]>`
     SELECT r.id FROM receipts r
     WHERE ${awaitingRelease(sql`r`)} AND r.updated_at < ${new Date(now - AUTO_RELEASE_AFTER_MS)}
-      AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND a.error LIKE ${AUTO_RELEASE_NOTE + "%"})
+      AND NOT EXISTS (SELECT 1 FROM receipt_attempts a WHERE a.receipt_id = r.id AND ${autoReleased(sql`a.error`)})
     ORDER BY r.id LIMIT 200`;
   let released = 0;
   let requeued = 0;
   for (const r of rows) {
-    const done = await release(r.id, AUTO_RELEASE_NOTE, "ops.recover", "结果未知，自动放行一次", null);
+    const done = await release(r.id, AUTO_RELEASE_NOTE, "ops.recover", "outcome unknown, released automatically once", null);
     if (done) released += 1;
     if (done?.requeued) requeued += 1;
   }

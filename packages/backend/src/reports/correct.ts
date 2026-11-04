@@ -10,6 +10,9 @@ interface Entry { itemId: string; followUp?: string; firstParty?: boolean; role?
 interface Group { label?: string; heading?: string; summary?: unknown; items?: Entry[]; storyRefs?: Entry[]; [key: string]: unknown }
 interface Content { sections?: Group[]; themes?: Group[]; metrics?: Record<string, number>; [key: string]: unknown }
 
+/** Entry roles of a first-party release (edition.ts roleOf); issues composed before the site was in English carry the Chinese ones. */
+const OFFICIAL_ROLES = new Set(["official", "X·official", "官方", "X·官方"]);
+
 /** Moves the item to its new section in every issue that carries it; says whether any issue changed. */
 export async function correctReportClassification(tx: Tx, articleId: string, reason: string): Promise<boolean> {
   const [item] = await tx<{ category: string | null }[]>`SELECT category FROM publications WHERE article_id=${articleId}`;
@@ -49,7 +52,7 @@ export async function correctReportClassification(tx: Tx, articleId: string, rea
         const byId = new Map(rows.map(r => [r.article_id, r]));
         content.metrics = { ...content.metrics, modelsReleased: entries.filter(e => {
           const p = byId.get(e.itemId);
-          return p && isRelease(p.category, p.tags) && !e.followUp && (e.firstParty || e.role === "官方" || e.role === "X·官方");
+          return p && isRelease(p.category, p.tags) && !e.followUp && (e.firstParty || OFFICIAL_ROLES.has(String(e.role)));
         }).length };
       }
     } else content.themes = arranged;

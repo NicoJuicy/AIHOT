@@ -44,13 +44,13 @@ test("a weekly that froze no summaries shows the articles' public summaries", as
   const minuteAgo = new Date(Date.now() - 60_000);
   const { articleId } = await upsertMaterial({ sourceId: SOURCE, url: `https://example.com/${T}`, title: `R ${T}`, bodyText: "b", bodyHtml: "<p>b</p>", bodyStatus: "ok", via: "fetch", publishedAt: minuteAgo, discoveredAt: minuteAgo });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected)
-            VALUES (${articleId}, 1, 'rule', 'pass', 'industry', ${`标题-${T}`}, ${`公开摘要-${T}`}, 80, true)`;
+            VALUES (${articleId}, 1, 'rule', 'pass', 'industry', ${`Title-${T}`}, ${`Public summary-${T}`}, 80, true)`;
   await publishArticle(articleId, { releasedAt: minuteAgo });
-  const content = { kind: "weekly", title: `${SITE.name} 周报 · ${WEEK}`, overview: "o", themes: [{ heading: "h", summary: "s", storyRefs: [{ itemId: articleId, title: `标题-${T}`, sourceName: "Old aggregator", sourceId: "old-source", firstParty: false, sourceUrl: "https://example.com" }] }] };
+  const content = { kind: "weekly", title: `${SITE.name} Weekly · ${WEEK}`, overview: "o", themes: [{ heading: "h", summary: "s", storyRefs: [{ itemId: articleId, title: `Title-${T}`, sourceName: "Old aggregator", sourceId: "old-source", firstParty: false, sourceUrl: "https://example.com" }] }] };
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
             VALUES ('weekly', ${WEEK}, now(), now(), ${sql.json(content as never)}, now(), 'imported')`;
   const report = await loadReport("weekly", WEEK);
-  assert.equal(report?.sections[0]?.items[0]?.summary, `公开摘要-${T}`);
+  assert.equal(report?.sections[0]?.items[0]?.summary, `Public summary-${T}`);
   assert.equal(report?.sections[0]?.items[0]?.sourceName, "Reports");
   assert.equal(report?.sections[0]?.items[0]?.firstParty, true, "a frozen citation cannot override verified current provenance");
   await sql`UPDATE sources SET tier = 'T1_5', first_party = true WHERE id = ${SOURCE}`;

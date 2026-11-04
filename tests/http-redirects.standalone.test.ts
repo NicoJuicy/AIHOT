@@ -1,6 +1,7 @@
-// 重定向测试只使用虚构凭据和回环服务；HTTPS 分支使用禁止联网的传输替身。
+// The redirect tests use only made-up credentials and loopback services; the HTTPS branch uses a transport double that cannot reach the network.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import http from "node:http";
 import { after, test } from "node:test";
 import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
@@ -43,7 +44,7 @@ for (const headers of [{ Authorization: `Bearer ${key}` }, { aUtHoRiZaTiOn: key 
     redirect("/header", b.url + "/capture", 307);
     const count = b.hits.length;
     await assert.rejects(guardedFetch(a.url + "/header", { headers }), /redirect/i);
-    assert.equal(b.hits.length, count, "目标服务不得收到请求");
+    assert.equal(b.hits.length, count, "the target service must receive no request");
   });
 }
 for (const body of [JSON.stringify({ key }), ""]) {
@@ -75,6 +76,15 @@ test("a caller's header replaces the default whatever the case of its name", asy
   assert.equal(a.hits.at(-1)!.headers["user-agent"], "fixture-agent/1.0");
   assert.equal(a.hits.at(-1)!.headers["accept-language"], "en");
 });
+test("CRAWLER_USER_AGENT replaces the default User-Agent, and one that cannot be a header refuses to start", () => {
+  const defaultUa = (env: Record<string, string>) => spawnSync(process.execPath, ["--input-type=module", "-e",
+    `import { DEFAULT_UA } from "@aihot/backend/lib/http-fetch"; process.stdout.write(DEFAULT_UA);`], { env: { ...process.env, ...env }, encoding: "utf8" });
+  assert.equal(defaultUa({ CRAWLER_USER_AGENT: " FixtureBot/1.0 (+https://example.com/bot) " }).stdout, "FixtureBot/1.0 (+https://example.com/bot)");
+  assert.match(defaultUa({ CRAWLER_USER_AGENT: "", SITE_URL: "https://example.com" }).stdout, /^Mozilla\/5\.0 \(compatible; .+; \+https:\/\/example\.com\/about\)$/);
+  const broken = defaultUa({ CRAWLER_USER_AGENT: "FixtureBot\nInjected: yes" });
+  assert.notEqual(broken.status, 0);
+  assert.match(broken.stderr, /CRAWLER_USER_AGENT must be printable ASCII/);
+});
 for (const status of [301, 302, 303, 307, 308]) {
   for (const method of ["POST", "PUT", "GET", "HEAD"]) {
     test(`same-origin ${status} preserves expected ${method} semantics`, async () => {
@@ -91,7 +101,7 @@ for (const status of [301, 302, 303, 307, 308]) {
       assert.equal(hit.body, converted ? "" : body ?? "");
       assert.equal(hit.headers.authorization, key);
       if (converted) for (const name of ["content-type", "content-language", "content-location", "content-encoding", "content-length"]) assert.equal(hit.headers[name], undefined, name);
-      assert.deepEqual(headers, before, "不得修改调用方头对象");
+      assert.deepEqual(headers, before, "the caller's headers object must not be modified");
     });
   }
 }
@@ -144,7 +154,7 @@ test("normal private-network guards still refuse direct and redirect destination
     await assert.rejects(guardedFetch(b.url + "/secret"), /Blocked/);
     config.allowPrivateNetworkFetch = true;
     a.routes.set("/guarded-hop", (_hit, res) => {
-      // 初始回环请求到达后恢复正常校验，验证下一跳确实再次经过目的地检查。
+      // Once the first loopback request arrives, normal checks resume, proving the next hop goes through the destination check again.
       config.allowPrivateNetworkFetch = false;
       res.writeHead(302, { location: b.url + "/secret" }); res.end();
     });

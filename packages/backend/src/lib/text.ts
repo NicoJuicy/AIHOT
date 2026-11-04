@@ -4,12 +4,30 @@ export function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-/** A declared language wins; otherwise Han text is Chinese only without Japanese or Korean script. */
-export function isChineseText(text: string, language?: string | null): boolean {
+// Common words that tell English from the other languages written in Latin letters. Words both share
+// ("a", "in", "an", "on") are in neither list.
+const ENGLISH_WORDS = new Set(["the", "and", "of", "to", "is", "are", "was", "for", "with", "that", "this", "from", "by", "it", "its", "as", "at", "be", "has", "have", "will", "or", "not", "we", "you", "our", "new"]);
+const OTHER_LATIN_WORDS = new Set([
+  "le", "la", "les", "des", "du", "et", "est", "une", "pour", "dans", "qui", "sur", "avec", // French
+  "der", "die", "das", "und", "ist", "nicht", "mit", "ein", "eine", "für", "von", "zu", "auf", "den", // German
+  "el", "los", "las", "y", "por", "para", "con", "una", "del", "es", "que", "de", // Spanish, and shared Romance words
+  "il", "di", "che", "per", "della", "het", "een", "van", "och", "att", "não", "uma", "com", "também", // Italian, Dutch, Swedish, Portuguese
+]);
+
+/**
+ * A declared language wins; otherwise text is English when nearly all its letters are basic Latin and
+ * its common words are no more often another Latin-script language's than English ones.
+ */
+export function isEnglishText(text: string, language?: string | null): boolean {
   const declared = language?.toLowerCase().split(/[-_]/)[0];
-  if (declared === "zh") return true;
+  if (declared === "en") return true;
   if (declared && !["und", "unknown", "other", "zxx"].includes(declared)) return false;
-  return /\p{Script=Han}/u.test(text) && !/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (!letters.length) return false;
+  if (letters.filter((c) => /[a-z]/i.test(c)).length < letters.length * 0.9) return false;
+  const words = text.toLowerCase().match(/\p{L}+/gu) ?? [];
+  const english = words.filter((w) => ENGLISH_WORDS.has(w)).length;
+  return english >= words.filter((w) => OTHER_LATIN_WORDS.has(w)).length;
 }
 
 export function truncate(s: string, max: number, ellipsis = "…"): string {
@@ -110,19 +128,4 @@ export function escapeXml(s: string): string {
     .replace(/'/g, "&apos;")
     // XML 1.0 forbids most control characters.
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-}
-
-/** Share of CJK characters among letters; used to decide whether a title needs translation. */
-export function cjkRatio(s: string): number {
-  const letters = s.match(/[\p{L}]/gu) ?? [];
-  if (letters.length === 0) return 0;
-  const cjk = s.match(/[㐀-鿿豈-﫿]/g) ?? [];
-  return cjk.length / letters.length;
-}
-
-export function guessLanguage(s: string): "zh" | "en" | "other" {
-  const ratio = cjkRatio(s);
-  if (ratio > 0.3) return "zh";
-  if (/[a-z]/i.test(s)) return "en";
-  return "other";
 }

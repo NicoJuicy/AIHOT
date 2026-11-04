@@ -26,7 +26,7 @@ export const links: Route.LinksFunction = () => [
   { rel: "icon", type: "image/png", href: "/icon.png" },
   { rel: "apple-touch-icon", href: "/apple-icon.png" },
   { rel: "manifest", href: "/manifest.webmanifest" },
-  { rel: "alternate", type: "application/rss+xml", title: `${SITE.name} — 精选`, href: "/feed.xml" },
+  { rel: "alternate", type: "application/rss+xml", title: `${SITE.name} — Picks`, href: "/feed.xml" },
 ];
 
 /** The release rendering this document: once a newer one is deployed, a render error reloads the page (entry.client). */
@@ -75,7 +75,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export function meta({ error }: Route.MetaArgs) {
   if (!error) return [];
   const notFound = isRouteErrorResponse(error) && error.status === 404;
-  return [{ title: titled(notFound ? "页面不存在" : "暂时无法加载") }, { name: "robots", content: "noindex" }];
+  return [{ title: titled(notFound ? "Page not found" : "Can't load right now") }, { name: "robots", content: "noindex" }];
 }
 
 /** Sidebar, main column and phone tab bar around a page (or an error). */
@@ -90,7 +90,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
     <div className="flex min-h-dvh lg:pl-[env(safe-area-inset-left)] lg:pr-[env(safe-area-inset-right)]">
       <NavigationProgress active={navigation.state === "loading"} />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2">
-        跳到正文
+        Skip to content
       </a>
       <Sidebar changelogVersion={changelogVersion} />
       {/* Phone shell (≤ 699px): each page's top bar (PhoneBar), one centred column, the tab bar below.
@@ -146,19 +146,19 @@ export function ErrorBoundary() {
       <div className="max-w-sm text-center">
         <RingMark className="mx-auto mb-5 size-10 text-accent" />
         <div className="mono text-[12px] text-ink-4">{status}</div>
-        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? "找不到这个页面" : "暂时无法加载"}</h1>
+        <h1 className="mt-1.5 text-[20px] font-bold text-ink">{notFound ? "Page not found" : "Can't load right now"}</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-3">
-          {notFound ? "链接可能有误，或者这条内容已经下架。" : "页面暂时无法显示，请重新加载后再试。"}
+          {notFound ? "The link may be wrong, or this content has been taken down." : "This page can't be shown right now. Reload and try again."}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           {!notFound && <Link reloadDocument to={pathname + search + hash} className={buttonClass("primary")}>
-            重新加载
+            Reload
           </Link>}
           <Link reloadDocument to="/" className={buttonClass(notFound ? "primary" : "secondary")}>
-            回到精选
+            Back to Picks
           </Link>
           <Link reloadDocument to="/all" className={buttonClass("secondary")}>
-            浏览全部动态
+            Browse all news
           </Link>
         </div>
       </div>

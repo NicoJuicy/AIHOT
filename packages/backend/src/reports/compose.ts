@@ -9,7 +9,8 @@ import { PLAIN_TERMS, RELEASE } from "@aihot/industry/taxonomy";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
 import { ENTITIES, entityNames, isRelease } from "../editorial/vocabulary.ts";
-import { addDays, beijingAt, beijingDate, beijingTime, isoWeekLabel, isoWeekRange, monthRange } from "@aihot/contracts/time";
+import { addDays, beijingAt, beijingDate, beijingTime, isoWeekLabel, isoWeekRange, monthDay, monthRange } from "@aihot/contracts/time";
+import { REPORT_NAMES } from "@aihot/contracts/site";
 import { sql } from "../db.ts";
 import { logError } from "../lib/log-error.ts";
 import { chatJson } from "../providers/llm.ts";
@@ -74,10 +75,9 @@ async function saveReport(kind: ReportKind, key: string, start: Date, end: Date,
   });
 }
 
-/** "10 月 4 日 08:00": one end of a quiet issue's window, as its lead paragraph names it. */
+/** "Oct 4, 08:00": one end of a quiet issue's window, as its lead paragraph names it. */
 function windowPoint(at: Date): string {
-  const day = beijingDate(at);
-  return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日 ${beijingTime(at)}`;
+  return `${monthDay(beijingDate(at))}, ${beijingTime(at)}`;
 }
 
 /**
@@ -121,17 +121,17 @@ const PERIOD_EVENTS = { weekly: 20, monthly: 30 } as const;
 /** A section is introduced once it carries this many events; one or two are read faster than introduced. */
 const INTRO_EVENTS = 3;
 /** The longest overview and introduction an issue prints; the brief asks for less, writers overshoot. */
-const OVERVIEW_CHARS = { weekly: 240, monthly: 340 } as const;
-const INTRO_CHARS = 90;
+const OVERVIEW_CHARS = { weekly: 720, monthly: 1020 } as const;
+const INTRO_CHARS = 270;
 /** The brief's values for each kind: its name, its span and how long its overview should be. */
 const BRIEF = {
-  weekly: { kindName: "周报", span: "一周", sentences: "三句话", chars: "160" },
-  monthly: { kindName: "月报", span: "个月", sentences: "三到四句话", chars: "240" },
+  weekly: { kindName: "weekly report", span: "week", sentences: "three sentences", chars: "480" },
+  monthly: { kindName: "monthly report", span: "month", sentences: "three to four sentences", chars: "720" },
 } as const;
 
 export const PeriodSchema = z.object({
-  overview: z.string().max(1500).catch(""),
-  sections: z.record(z.string(), z.string().max(600)).catch({}),
+  overview: z.string().max(4500).catch(""),
+  sections: z.record(z.string(), z.string().max(1800)).catch({}),
 });
 
 /**
@@ -140,15 +140,15 @@ export const PeriodSchema = z.object({
  * what the issue carries.
  */
 export function periodPrompt(kind: "weekly" | "monthly", startDate: string, endDateInclusive: string, groups: Array<{ label: string; items: Candidate[] }>) {
-  const list = groups.map((g) => [`【${g.label}】`, ...g.items.map((e) => `- ${e.title}｜${e.summary.slice(0, 140)}`)].join("\n")).join("\n");
+  const list = groups.map((g) => [`[${g.label}]`, ...g.items.map((e) => `- ${e.title} | ${e.summary.slice(0, 420)}`)].join("\n")).join("\n");
   const introduced = groups.filter((g) => g.items.length >= INTRO_EVENTS).map((g) => g.label);
   return {
     system: promptText("report-period", {
       ...BRIEF[kind],
-      sections: introduced.length ? promptText("report-period-sections", { columns: introduced.map((l) => `「${l}」`).join("") }) : promptText("report-period-no-sections"),
+      sections: introduced.length ? promptText("report-period-sections", { columns: introduced.map((l) => `"${l}"`).join(", ") }) : promptText("report-period-no-sections"),
       sectionsExample: introduced.length ? `{"${introduced[0]}": "..."}` : "{}",
     }),
-    user: `本期：${startDate} 至 ${endDateInclusive}\n${list}`,
+    user: `This issue: ${startDate} to ${endDateInclusive}\n${list}`,
   };
 }
 
@@ -156,29 +156,47 @@ const COMPANY_NAMES = Object.values(ENTITIES).map((e) => entityNames(e).map((n) 
 /** Words a writer may use that name nothing in particular: the pack's plain terms and the site's name. */
 const PLAIN = new Set([...PLAIN_TERMS, SITE.name.toLowerCase()]);
 
+/** Capitalised wherever they stand, and naming nothing an item must name. */
+const CALENDAR_WORDS = new Set([
+  "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+]);
+/** A word at the start of a sentence: the text's first, or after a sentence's end mark (and its closing quote or bracket). */
+const SENTENCE_START = /(?:^|[.!?。！？]["'”’)\]]*\s+)["'“‘(]?$/;
+
 /**
  * Whether written text names only what the listed items name: every capitalised or numbered Latin token
  * (Acme, Nova-2.5, X1), every figure of three or more digits or with a decimal point or percent (845,
  * 129.3, 40%) and every company of the vocabulary appears in the items' own words; a company may be named
- * in either language (谷歌 for Google).
+ * by any of its aliases (Alphabet for Google). English capitalises the first word of every sentence and the names
+ * of months and days, so those alone prove nothing; a vocabulary company opening a sentence is still checked.
  */
 export function grounded(text: string, corpus: string): boolean {
   const known = corpus.toLowerCase();
   const companies = COMPANY_NAMES.filter((names) => names.some((n) => known.includes(n)));
   const named = (word: string) => PLAIN.has(word) || known.includes(word) || companies.some((names) => names.includes(word));
-  const words = (text.match(/[A-Za-z][A-Za-z0-9.+-]*/g) ?? []).map((w) => w.replace(/[.+-]+$/, "")).filter((w) => /[A-Z0-9]/.test(w));
+  const company = (word: string) => COMPANY_NAMES.some((names) => names.includes(word));
+  const words = [...text.matchAll(/[A-Za-z][A-Za-z0-9.+-]*/g)]
+    .map((m) => ({ word: m[0].replace(/[.+-]+$/, ""), opensSentence: SENTENCE_START.test(text.slice(0, m.index)) }))
+    .filter(({ word, opensSentence }) => /[A-Z0-9]/.test(word) && !CALENDAR_WORDS.has(word.toLowerCase())
+      && !(opensSentence && /^[A-Z][a-z]*$/.test(word) && !company(word.toLowerCase())))
+    .map(({ word }) => word);
   const figures = (text.match(/\d+(?:\.\d+)?%?/g) ?? []).filter((f) => f.length >= 3 || /[.%]/.test(f));
   const lower = text.toLowerCase();
   const mentioned = COMPANY_NAMES.filter((names) => names.some((n) => /\p{Script=Han}/u.test(n) && lower.includes(n)));
   return words.every((w) => named(w.toLowerCase())) && figures.every((f) => known.includes(f)) && mentioned.every((names) => companies.includes(names));
 }
 
-/** The leading whole sentences of a text that fit in `max` characters; null when not even the first does. */
+/**
+ * The leading whole sentences of a text that fit in `max` characters; null when not even the first does. A
+ * full stop ends a sentence only before a space or the end, so "GPT-5.5" stays whole.
+ */
 export function fitted(text: string, max: number): string | null {
   let out = "";
-  for (const sentence of text.trim().match(/[^。！？]+(?:[。！？]+[」”’）]*|$)/g) ?? []) {
-    if ([...out + sentence].length > max) break;
-    out += sentence;
+  for (const sentence of text.trim().split(/(?<=[.!?。！？]["'”’)\]]*)\s+/u)) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if ([...next].length > max) break;
+    out = next;
   }
   return out.trim() || null;
 }
@@ -238,7 +256,7 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
   const [lead] = top as [Candidate, ...Candidate[]];
   const content = {
     kind,
-    title: kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`,
+    title: `${SITE.name} ${REPORT_NAMES[kind]} · ${key}`,
     ...(kind === "weekly" ? { isoLabel: key } : { monthLabel: key }),
     periodStart: startDate,
     periodEnd: endDateInclusive,

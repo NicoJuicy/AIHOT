@@ -64,11 +64,7 @@ function mediaDescription(entry: Record<string, any>): string | null {
 function parseDate(v: string): Date | null {
   if (!v) return null;
   const t = Date.parse(v);
-  if (Number.isFinite(t)) return new Date(t);
-  // RFC 822 variants with Chinese weekday or odd zones
-  const cleaned = v.replace(/星期[一二三四五六日天]/, "").replace(/\s+/g, " ").trim();
-  const t2 = Date.parse(cleaned);
-  return Number.isFinite(t2) ? new Date(t2) : null;
+  return Number.isFinite(t) ? new Date(t) : null;
 }
 
 function atomLink(links: unknown, base: string): string {
@@ -206,7 +202,7 @@ export async function fetchRss(source: SourceRow, opts: { force?: boolean } = {}
         ...(mediaFile ? { identityKey: identityKeyFor({ sourceId: source.id, url: guid, title, via: "fetch" }) } : {}),
         title,
         author: text(it["dc:creator"]) || text(it.author) || null,
-        ...readPublicationDate((text(it.pubDate) || text(it["dc:date"]) || text(it.published)).replace(/星期[一二三四五六日天]/, ""), source.config.publishedAtUtcOffset),
+        ...readPublicationDate(text(it.pubDate) || text(it["dc:date"]) || text(it.published), source.config.publishedAtUtcOffset),
         ...feedText(bodyHtml, description ? stripTags(description) : null, source, !mediaFile && !video),
         ...(videoExcerpt ? { excerpt: videoExcerpt } : {}),
         media: media.slice(0, 6),

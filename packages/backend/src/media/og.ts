@@ -9,7 +9,7 @@ import sharp from "sharp";
 import { config, REPO_ROOT } from "../config.ts";
 import { SITE } from "@aihot/site";
 
-export const OG_TEMPLATE_VERSION = "og-2026-09-29.1";
+export const OG_TEMPLATE_VERSION = "og-2026-11-04.1";
 const WIDTH = 1200;
 const HEIGHT = 630;
 const CACHE_DIR = path.join(config.dataDir, "ogcache");
@@ -104,8 +104,9 @@ export function clamp(text: string, max: number) {
 
 async function tree(card: OgCard): Promise<Node> {
   const accent = ACCENTS[card.accent ?? "teal"];
-  const title = clamp(card.title, 64);
-  const titleSize = [...title].length > 40 ? 50 : [...title].length > 24 ? 58 : 66;
+  // Lengths in characters of English text, which runs about half as wide as Chinese.
+  const title = clamp(card.title, 128);
+  const titleSize = [...title].length > 80 ? 50 : [...title].length > 48 ? 58 : 66;
   return h(
     "div",
     {
@@ -126,13 +127,13 @@ async function tree(card: OgCard): Promise<Node> {
       ]),
       h("div", { display: "flex", marginTop: 56, alignItems: "center" }, [
         h("div", { width: 10, height: 10, borderRadius: 999, backgroundColor: accent, marginRight: 14 }),
-        h("div", { display: "flex", fontSize: 28, fontWeight: 700, color: accent, letterSpacing: 1 }, clamp(card.kicker, 30)),
+        h("div", { display: "flex", fontSize: 28, fontWeight: 700, color: accent, letterSpacing: 1 }, clamp(card.kicker, 60)),
       ]),
       h("div", { display: "flex", flex: 1, marginTop: 22, gap: 40 }, [
         h("div", { display: "flex", flexDirection: "column", flex: 1 }, [
           h("div", { display: "flex", fontSize: titleSize, fontWeight: 700, lineHeight: 1.25, color: "#ffffff" }, title),
           // Long titles take three lines; the summary then gets one line so nothing reaches the footer.
-          card.subtitle ? h("div", { display: "flex", marginTop: 22, fontSize: 28, lineHeight: 1.5, color: "#b1bec0" }, clamp(card.subtitle, [...title].length > 40 ? 26 : [...title].length > 24 ? 50 : 78)) : null,
+          card.subtitle ? h("div", { display: "flex", marginTop: 22, fontSize: 28, lineHeight: 1.5, color: "#b1bec0" }, clamp(card.subtitle, [...title].length > 80 ? 52 : [...title].length > 48 ? 100 : 156)) : null,
         ].filter(Boolean)),
         card.badge
           ? h("div", { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 170, height: 170, borderRadius: 999, border: `6px solid ${accent}` }, [
@@ -141,7 +142,7 @@ async function tree(card: OgCard): Promise<Node> {
             ])
           : null,
       ].filter(Boolean)),
-      card.meta ? h("div", { display: "flex", fontSize: 24, color: "#82939a", borderTop: "1px solid rgba(230,237,237,0.12)", paddingTop: 22 }, clamp(card.meta, 70)) : null,
+      card.meta ? h("div", { display: "flex", fontSize: 24, color: "#82939a", borderTop: "1px solid rgba(230,237,237,0.12)", paddingTop: 22 }, clamp(card.meta, 140)) : null,
     ].filter(Boolean),
   );
 }

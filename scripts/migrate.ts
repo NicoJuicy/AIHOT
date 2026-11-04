@@ -71,6 +71,13 @@ export async function runMigrations(sql: postgres.Sql, root: string, { backupWai
           if (!index?.indisvalid) throw new Error(`index ${plan.index} is missing or invalid; inspect it and DROP INDEX CONCURRENTLY before retrying`);
           if (!index.same_table) throw new Error(`index ${plan.index} belongs to a different table`);
           await session`INSERT INTO schema_migrations (name) VALUES (${name})`;
+        } else if (plan.kind === "drop-index") {
+          // Like a concurrent build, a concurrent drop cannot run inside our transaction; an interrupted one
+          // leaves the index invalid, and running the file again finishes it.
+          await session.unsafe(text);
+          const [left] = await session<{ index: string | null }[]>`SELECT to_regclass(${plan.index})::text AS index`;
+          if (left?.index) throw new Error(`index ${plan.index} is still there; inspect it and run the migration again`);
+          await session`INSERT INTO schema_migrations (name) VALUES (${name})`;
         } else {
           await session`BEGIN`;
           try {

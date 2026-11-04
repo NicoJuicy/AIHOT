@@ -13,13 +13,13 @@ import { adaptIntervals } from "@aihot/backend/sources/collect";
 
 installModules([defineServerModule({
   name: "watcher",
-  sourceUses: { watch: { label: "盯梢", minutes: 20 }, slow: { label: "慢慢看", minutes: 90 } },
+  sourceUses: { watch: { label: "Watch", minutes: 20 }, slow: { label: "Slow read", minutes: 90 } },
 })]);
 const T = tag();
 after(closeDb);
 
 const feed = (id: string, uses?: string[]) => ({
-  id: `uses-${id}-${T}`, name: `用途 ${id} ${T}`, kind: "rss", config: { feedUrl: `https://example.com/${id}-${T}.xml` }, ...(uses ? { uses } : {}),
+  id: `uses-${id}-${T}`, name: `Use ${id} ${T}`, kind: "rss", config: { feedUrl: `https://example.com/${id}-${T}.xml` }, ...(uses ? { uses } : {}),
 });
 
 test("a source names the uses it serves; one no installed module declares is refused", async () => {
@@ -29,7 +29,7 @@ test("a source names the uses it serves; one no installed module declares is ref
   const plain = await createSource(feed("plain"), "test");
   assert.ok(plain.created);
   assert.deepEqual(plain.source.uses, [], "the news pipeline alone");
-  await assert.rejects(createSource(feed("unknown", ["nobody"]), "test"), (e: unknown) => e instanceof ZodError && /用途/.test(e.message));
+  await assert.rejects(createSource(feed("unknown", ["nobody"]), "test"), (e: unknown) => e instanceof ZodError && /source use/.test(e.message));
   const [{ n }] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM sources WHERE id = ${`uses-unknown-${T}`}`;
   assert.equal(n, 0);
 });
@@ -38,7 +38,7 @@ test("an admin edit changes a source's uses and is audited; an unknown use is re
   const created = await createSource(feed("edited"), "test");
   assert.ok(created.created);
   const id = created.source.id;
-  const after = await updateSource(id, { patch: { uses: ["watch", "slow"] }, version: new Date(created.source.updated_at as unknown as string).toISOString(), reason: "加用途" }, "test");
+  const after = await updateSource(id, { patch: { uses: ["watch", "slow"] }, version: new Date(created.source.updated_at as unknown as string).toISOString(), reason: "add uses" }, "test");
   assert.deepEqual(after!.uses, ["watch", "slow"]);
   const [audit] = await sql<{ before: { uses: string[] }; after: { uses: string[] } }[]>`
     SELECT before, after FROM audit_log WHERE subject = ${`source:${id}`} AND action = 'source.update' ORDER BY id DESC LIMIT 1`;
@@ -54,10 +54,10 @@ test("the admin lists sources by use and names each use", async () => {
   assert.ok(list.rows.length >= 1);
   assert.ok(list.rows.every((r) => r.uses.includes("slow")), "only sources serving the use");
   assert.ok(list.rows.some((r) => r.id === `uses-listed-${T}`));
-  assert.deepEqual(list.useLabels, { watch: "盯梢", slow: "慢慢看" });
+  assert.deepEqual(list.useLabels, { watch: "Watch", slow: "Slow read" });
   const detail = await sourceDetail(`uses-listed-${T}`);
   assert.deepEqual(detail!.source.uses, ["slow"]);
-  assert.deepEqual(detail!.useLabels, { watch: "盯梢", slow: "慢慢看" });
+  assert.deepEqual(detail!.useLabels, { watch: "Watch", slow: "Slow read" });
 });
 
 test("a source given a use, or created with one, keeps the use's pace from then on, not from the next daily adaptation", async () => {
@@ -88,11 +88,11 @@ test("a source given a use, or created with one, keeps the use's pace from then 
   }, "test");
   assert.ok(paid.created);
   assert.equal(paid.source.interval_minutes, 60);
-  // A WeChat account is read when the phone shows it updated, not by interval: a use leaves it as it is.
+  // An outside-report source is never read, so it has no pace to change: a use leaves it as it is.
   await sql`INSERT INTO sources (id, name, kind, config, tier, participation_mode, interval_minutes)
-    VALUES (${`uses-mp-${T}`}, 'mp', 'mp_account', ${sql.json({ ghid: `gh_${T}` })}, 'T1_5', 'editorial', 120)`;
-  const [mp] = await sql<{ updated_at: Date }[]>`SELECT updated_at FROM sources WHERE id = ${`uses-mp-${T}`}`;
-  const watched = await updateSource(`uses-mp-${T}`, { patch: { uses: ["watch"] }, version: mp!.updated_at.toISOString() }, "test");
+    VALUES (${`uses-external-${T}`}, 'external', 'external', ${sql.json({})}, 'T1_5', 'editorial', 120)`;
+  const [external] = await sql<{ updated_at: Date }[]>`SELECT updated_at FROM sources WHERE id = ${`uses-external-${T}`}`;
+  const watched = await updateSource(`uses-external-${T}`, { patch: { uses: ["watch"] }, version: external!.updated_at.toISOString() }, "test");
   assert.equal(watched!.interval_minutes, 120);
 });
 

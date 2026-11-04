@@ -39,11 +39,10 @@ FROM receipts;
 -- peaks so only runaway loops trip them. Operators tune them in the admin; a zero
 -- stops a service. Existing rows are kept.
 INSERT INTO budgets (service, per_minute, per_hour, per_day, note) VALUES
-  ('jina', 5, 50, 300, '正文兜底（按请求计费）'),
-  ('socialdata', 10, 100, 1000, 'X 搜索（按请求计费）'),
-  ('dajiala', 5, 60, 500, '公众号列表与正文（按请求计费）'),
-  ('zhipu', 100, 2000, 20000, '模型调用熔断（智谱）'),
-  ('deepseek', 100, 2000, 20000, '模型调用熔断（DeepSeek）'),
-  ('dashscope', 100, 2000, 20000, '模型与向量调用熔断（阿里云百炼）'),
-  ('mimo', 100, 2000, 20000, '模型调用熔断（小米 MiMo）')
+  ('jina', 5, 50, 300, 'Body text fallback (billed per request)'),
+  ('socialdata', 10, 100, 1000, 'X search (billed per request)'),
+  ('zhipu', 100, 2000, 20000, 'Model call breaker (Zhipu)'),
+  ('deepseek', 100, 2000, 20000, 'Model call breaker (DeepSeek)'),
+  ('dashscope', 100, 2000, 20000, 'Model and embedding call breaker (Alibaba Cloud Model Studio)'),
+  ('mimo', 100, 2000, 20000, 'Model call breaker (Xiaomi MiMo)')
 ON CONFLICT (service) DO NOTHING;

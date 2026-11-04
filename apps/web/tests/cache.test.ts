@@ -35,7 +35,7 @@ const api = fakeApi(async (url, res, req) => {
     return res.end("# Article");
   }
   if (url.pathname === "/api/site/items/long-lived") return { id: "long-lived", title: "t" };
-  if (url.pathname === "/api/site/contact") return { wechatQr: "/qr.png", feishuQr: "/qr.png" };
+  if (url.pathname === "/api/site/contact") return { feishuQr: "/qr.png" };
   if (url.pathname === "/api/site/stories/merged") {
     res.statusCode = 308;
     return { mergedInto: "surviving-story" };
@@ -90,7 +90,7 @@ test("HTML and navigation share freshness; cookies do not personalize public res
   const html = await fetch(`${origin}/`);
   assert.equal(html.status, 200);
   assert.equal(html.headers.get("X-Accel-Expires"), `@${deadline}`);
-  assert.match(await html.text(), /精选/);
+  assert.match(await html.text(), /Picks/);
   // The api's deadline also fixes the result's own expiry, so reads seconds apart compare byte for byte.
   const plain = await fetch(`${origin}/_.data`);
   const signedIn = await fetch(`${origin}/_.data?_routes=root`, { headers: { cookie: "admin_session=private; reader=returning" } });

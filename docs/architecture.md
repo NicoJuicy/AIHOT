@@ -1,105 +1,105 @@
-# 架构
+# Architecture
 
 ```mermaid
 flowchart LR
-  S["信源<br/>RSS · 网页 · JSON · X · 公众号 · 外部推送"] --> C["采集<br/>判重 · 抓原文"]
-  C --> J["判断与写作<br/>预筛 · 评分 · 标题摘要 · 结构化"]
-  J --> G["归组<br/>事件 · 热度 · 综述"]
-  J --> P["公开读取层<br/>publication/"]
+  S["Sources<br/>RSS · web · JSON · X · external push"] --> C["Collection<br/>dedup · fetch original"]
+  C --> J["Judging and writing<br/>prefilter · scoring · headline and summary · structuring"]
+  J --> G["Grouping<br/>events · heat · overviews"]
+  J --> P["Public read layer<br/>publication/"]
   G --> P
-  P --> R["日报 · 周报 · 月报"]
-  P --> O["网页 · RSS · API v1 · MCP · llms.txt · 站点地图 · 分享图"]
+  P --> R["Daily · weekly · monthly reports"]
+  P --> O["Web · RSS · API v1 · MCP · llms.txt · sitemap · share images"]
 ```
 
-## 三个进程
+## Three processes
 
-| 进程 | 位置 | 做什么 |
+| Process | Location | What it does |
 |---|---|---|
-| api | `apps/api/` | Fastify。网站自用接口（`/api/site/`）、公开 API（`/api/v1/`）、RSS、MCP、后台接口、图片代理、分享图 |
-| worker | `apps/worker/` | pg-boss 任务队列和定时任务：抓信源、调模型、归组、热度、日报、告警、清理 |
-| web | `apps/web/` | React Router 服务端渲染的网页。只通过 HTTP 读 api，不碰数据库 |
+| api | `apps/api/` | Fastify. The site's own API (`/api/site/`), the public API (`/api/v1/`), RSS, MCP, the admin API, the image proxy, share images |
+| worker | `apps/worker/` | pg-boss job queue and scheduled jobs: fetching sources, calling models, grouping, heat, daily reports, alerts, cleanup |
+| web | `apps/web/` | Server-side rendered pages with React Router. Reads the api only over HTTP and never touches the database |
 
-业务代码都在 `packages/backend/`，前后端共用的类型和常量在 `packages/contracts/`。这个站自己的名字、文案、品牌和页面在 `site/`，行业的分类、信源、提示词和门槛在 `industry/`，只属于这个站的功能在 `modules/`（见下文“模块”）。
+Business logic lives in `packages/backend/`; types and constants shared by frontend and backend live in `packages/contracts/`. This site's own name, copy, brand and pages are in `site/`; the industry's categories, sources, prompts and thresholds are in `industry/`; features that belong only to this site are in `modules/` (see [Modules](#modules) below).
 
-## 几条不变的规则
+## Rules that don't change
 
-- **一个公开读取层**：网页、RSS、API、MCP、站点地图、分享图读的都是 `packages/backend/src/publication/`。公开范围、精选席位（机器出口每条新闻只出一条）与事实证据条件只在 `publication/scope.ts` 定义；新增出口也遵循当前的撤回和全文许可。已出刊报告保留当期写作，但引用是否可公开、来源名和引用时间仍按当前资料判断；撤回也要移除依赖该引用的导读与封面。
-- **缓存不延长旧内容的寿命**：可变内容按响应的 `Cache-Control` 到期重新验证，站点地图的进程、磁盘与 HTTP 缓存共用同一个截止时间，不能在发送时重新计时；MCP 的 HTTP 响应使用 `no-store`。自建代理或 CDN 同样要遵守，配置要求见 [部署](deploy.md#配域名和-https) 的“配域名和 HTTPS”。
-- **页面不调模型**：读者打开页面只读数据库里已经有的结果；模型只在 worker 的任务里调用。
-- **花钱的请求有回执**：每个付费请求（模型、X、公众号、Jina）先记一张回执，拿到结果先存再用。进程重启、任务重试时，复用已经付过钱的结果，不重复花钱（`providers/receipts.ts`）。结果不明的回执超过 30 分钟后自动放行一次；因它停在失败状态的文章会重新入队，继续未完成的正文提取或分析。再次结果不明时，由管理员在“运行”页核对后放行。
-- **预算熔断**：每个付费服务有每分钟、每小时、每天的上限，超过就暂停（后台“设置 → 付费请求上限”）。
-- **安全阀**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_CONTENT_PUSH_ENABLED`、`FEISHU_INTERNAL_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 只决定“发不发出去”，不决定走哪套逻辑；只有设成 `true` 才打开，没写就是关。`scripts/init-env.ts` 生成的 `.env` 会打开采集和模型调用，只调界面时可以改成 `false`；测试里推送一直关着，采集和模型调用只连本地假服务。
-- **公开内容匿名**：管理员和访客看到的一样；读者的收藏、已读存在浏览器里。后台只允许管理员。
-- **旧文不刷屏**：发现时已发布超过 48 小时的资料、新信源第一次导入的存量、回灌的推送，按原文时间归档，不进“今天”、不推送；第一次导入之后不再收列表里更早的存量。没有可信发布时间的资料先不公开，读到日期后再判断新旧。
-- **来源可追溯**：每条精选都链接原文；站内是否显示全文由信源的 `site_fulltext` 决定，默认只显示摘要。
-- **规则由所属模块维护**：后台调用内容、事件、通知与恢复模块，不直接改写它们的状态；业务模块不反过来依赖后台。人工修改、公开结果与恢复所需记录一起提交。
-- **跨进程接口共享类型**：后台接口以 `packages/contracts/src/admin.ts` 为准，任务载荷以 `jobs/queue.ts` 的 `JobData` 为准，发送方和接收方一起检查。前端仍只通过 HTTP 访问后端。
+- **One public read layer**: web pages, RSS, the API, MCP, the sitemap and share images all read from `packages/backend/src/publication/`. The public scope, selection slots (machine outputs carry one entry per piece of news) and the conditions for factual evidence are defined only in `publication/scope.ts`; new outputs also follow the current retraction and full-text permissions. Published reports keep the text written for that edition, but whether a citation may be shown, the source name and the citation time still follow the current material; a retraction also removes the introductions and covers that depend on that citation.
+- **Caching never extends the life of old content**: mutable content is revalidated when the response's `Cache-Control` expires. The sitemap's process, disk and HTTP caches share one expiry time, which must not restart when the response is sent; MCP HTTP responses use `no-store`. Your own proxies or CDNs must follow the same rules; see [Domain and HTTPS](deploy.md#domain-and-https) in the deployment guide for the requirements.
+- **Pages don't call models**: a reader opening a page only reads results already in the database; models are only called in worker jobs.
+- **Paid requests have receipts**: every paid request (models, X, Jina) records a receipt first, and results are stored before they are used. When a process restarts or a job retries, it reuses results that were already paid for instead of paying again (`providers/receipts.ts`). A receipt with an unknown outcome is released once automatically after 30 minutes; articles stuck in a failed state because of it are requeued to continue the unfinished body extraction or analysis. If the outcome is unknown again, an admin checks it on the "Runs" page and releases it.
+- **Budget breakers**: each paid service has per-minute, per-hour and per-day limits and pauses once they are exceeded (admin "Settings → Paid request limits").
+- **Safety valves**: `COLLECT_ENABLED`, `MODEL_CALLS_ENABLED`, `FEISHU_CONTENT_PUSH_ENABLED`, `FEISHU_INTERNAL_ENABLED` and `INDEXNOW_SUBMIT_ENABLED` only decide whether things are sent out, not which logic runs. They are only open when set to `true`; unset means off. The `.env` generated by `scripts/init-env.ts` turns on collection and model calls; set them to `false` when you are only working on the interface. In tests, pushes are always off, and collection and model calls only reach local fake services.
+- **Public content is anonymous**: admins and visitors see the same thing; readers' saved and read items live in the browser. The admin area is for admins only.
+- **Old articles don't flood the site**: material that was already more than 48 hours old when discovered, the backlog from a new source's first import, and backfilled pushes are archived by their original time; they don't enter "Today" and are not pushed. After the first import, older backlog items from a list are no longer collected. Material without a trustworthy publication time stays private until a date is found, and is then judged as new or old.
+- **Sources are traceable**: every selected item links to the original; whether the site shows the full text is decided by the source's `site_fulltext`, and by default only the summary is shown.
+- **Rules are maintained by the module that owns them**: the admin calls the content, event, notification and recovery modules and doesn't rewrite their state directly; business modules don't depend back on the admin. Manual changes are committed together with the public results and the records needed for recovery.
+- **Cross-process interfaces share types**: the admin API follows `packages/contracts/src/admin.ts`, and job payloads follow `JobData` in `jobs/queue.ts`; sender and receiver are checked together. The frontend still reaches the backend only over HTTP.
 
-这些模块边界由 `tests/architecture.test.ts` 检查；调整边界时同时更新约定与检查。站点身份和每一步的模型从 `site/` 读，行业分类和提示词从 `industry/` 读，代码里不写死某个站的值。
+These module boundaries are checked by `tests/architecture.test.ts`; when adjusting a boundary, update the convention and the check together. Site identity and the model for each step are read from `site/`, and industry categories and prompts from `industry/`; the code never hard-codes one site's values.
 
-## 目录
+## Directories
 
-| 位置 | 内容 |
+| Location | Contents |
 |---|---|
-| `site/` | 这个站自己的：站名文案、每一步的模型、品牌与 Logo、条款页、网站根目录的四个固定文件（`public/`，替换占位符后发布）、更新日志，以及启用哪些模块（`site/modules/`） |
-| `industry/` | 行业包：分类标签、主题、示范信源、提示词、门槛 |
-| `modules/` | 只属于这个站的功能，一个功能一个文件夹（见下文“模块”）；框架本身不带模块 |
-| `packages/backend/src/sources/` | 六种信源的读取器，抓取调度（`collect.ts`） |
-| `packages/backend/src/content/` | 资料入库、判重、正文提取和清洗 |
-| `packages/backend/src/editorial/` | 判断与写作：`analyze.ts`（流程）、`prompts.ts`（读提示词）、`models.ts`（每一步用哪个模型） |
-| `packages/backend/src/events/` | 事件归组、热度、事件综述 |
-| `packages/backend/src/publication/` | 公开读取层 |
-| `packages/backend/src/reports/` | 日报、周报、月报 |
-| `packages/backend/src/providers/` | 模型、向量、X、公众号、Jina 的调用，回执与预算 |
-| `packages/backend/src/notify/` | 飞书推送 |
-| `packages/backend/src/operations/` | 告警、备份、清理、IndexNow |
-| `packages/backend/src/admin/` | 后台接口 |
-| `apps/web/app/routes/` | 每个页面一个文件，路由表在 `apps/web/app/routes.ts` |
-| `database/migrations/` | 数据库迁移，按完整文件名排序执行和记账 |
-| `scripts/` | 初始化、迁移、种子数据、评测、检查脚本 |
-| `tests/` | 后端测试（数据库名必须以 `_test` 或 `_ci` 结尾，见下文） |
+| `site/` | This site's own things: name and copy, the model for each step, brand and logo, terms pages, the four fixed files at the site root (`public/`, published after placeholders are replaced), the changelog, and which modules are enabled (`site/modules/`) |
+| `industry/` | Industry pack: categories and tags, topics, demo sources, prompts, thresholds |
+| `modules/` | Features that belong only to this site, one folder per feature (see [Modules](#modules) below); the framework itself ships no modules |
+| `packages/backend/src/sources/` | Readers for the five kinds of sources, fetch scheduling (`collect.ts`) |
+| `packages/backend/src/content/` | Storing material, dedup, body extraction and cleanup |
+| `packages/backend/src/editorial/` | Judging and writing: `analyze.ts` (the pipeline), `prompts.ts` (reads prompts), `models.ts` (which model each step uses) |
+| `packages/backend/src/events/` | Event grouping, heat, event overviews |
+| `packages/backend/src/publication/` | The public read layer |
+| `packages/backend/src/reports/` | Daily, weekly and monthly reports |
+| `packages/backend/src/providers/` | Calls to models, embeddings, X and Jina; receipts and budgets |
+| `packages/backend/src/notify/` | Feishu pushes |
+| `packages/backend/src/operations/` | Alerts, backups, cleanup, IndexNow |
+| `packages/backend/src/admin/` | The admin API |
+| `apps/web/app/routes/` | One file per page; the route table is in `apps/web/app/routes.ts` |
+| `database/migrations/` | Database migrations, run and recorded in order of their full file name |
+| `scripts/` | Init, migration, seed data, evaluation and check scripts |
+| `tests/` | Backend tests (the database name must end in `_test` or `_ci`; see below) |
 
-## 模块
+## Modules
 
-框架里没有、只有你这个站要的功能（比如一个专门的榜单或监控页），做成模块：一个功能一个文件夹 `modules/<名字>/`，是一个名为 `@aihot/<名字>` 的 npm 包，装着它自己的后端、接口、页面、样式、数据库迁移和测试。
+A feature the framework doesn't have and only your site needs (for example a dedicated leaderboard or monitoring page) becomes a module: one folder per feature, `modules/<name>/`, which is an npm package named `@aihot/<name>` holding its own backend, API, pages, styles, database migrations and tests.
 
-| 文件 | 内容 |
+| File | Contents |
 |---|---|
-| `module.ts` | 它的地址：页面、跳转、交给 api 处理的路径（类型见 `packages/contracts/src/modules.ts`） |
-| `server.ts` | 它接进后端的插口：接口、定时任务、队列、事件回调、后台页面的数据等（`packages/backend/src/modules.ts`，每个插口注明读它的文件） |
-| `web.tsx` | 它接进网页的插口：页面、导航项、主题页与后台的部件等（`apps/web/app/modules.ts`）；只在某一页出现的部件给出加载函数，随那一页的代码加载 |
-| `migrations/` | 它自己的表，和 `database/migrations/` 一起按文件名排序执行 |
-| `tests/` | 它的测试，`npm test` 一起跑 |
-| 其他文件 | 它自己的图片等静态文件也放在模块文件夹里：在 `server.ts` 的 `http` 插口里注册路由，用 `apps/api/src/routes/static.ts` 的 `sendFile` 发出（类型、ETag、缓存头和 404 都由它处理，文件名自己校验），地址写进 `module.ts` 的 `apiPaths` |
+| `module.ts` | Its addresses: pages, redirects, and paths handed to the api (types in `packages/contracts/src/modules.ts`) |
+| `server.ts` | Its hooks into the backend: API routes, scheduled jobs, queues, event callbacks, data for admin pages and so on (`packages/backend/src/modules.ts`; each hook names the file that reads it) |
+| `web.tsx` | Its hooks into the web app: pages, navigation items, widgets for topic pages and the admin and so on (`apps/web/app/modules.ts`); a widget that appears on only one page provides a loader function and is loaded with that page's code |
+| `migrations/` | Its own tables, run together with `database/migrations/` in file name order |
+| `tests/` | Its tests, run by `npm test` |
+| Other files | Its own static files such as images also go in the module folder: register a route in the `http` hook of `server.ts` and serve them with `sendFile` from `apps/api/src/routes/static.ts` (it handles content types, ETags, cache headers and 404s; validate file names yourself), and list the addresses in `apiPaths` in `module.ts` |
 
-写好以后在 `site/modules/` 的三份清单里列上它：`index.ts` 列地址，`server.ts` 列后端，`web.ts` 列网页，没有的那份不列；再在 `site/package.json` 的 `dependencies` 里写上它。用 Docker 部署的，在 `Dockerfile` 里照着其他包加一行 `COPY modules/<名字>/package.json modules/<名字>/`。框架的代码不导入任何模块，只读这三份清单，所以合并本仓库以后的更新时，不容易和你自己的功能冲突。插口不够用时，在框架里加一个通用的插口，而不是把这个功能写进框架。
+Once written, list it in the three manifests in `site/modules/`: `index.ts` lists addresses, `server.ts` the backend, `web.ts` the web app; skip the ones it has nothing for. Then add it to `dependencies` in `site/package.json`. For Docker deployments, add a line `COPY modules/<name>/package.json modules/<name>/` to the `Dockerfile`, like the other packages. The framework code imports no modules and only reads these three manifests, so merging later updates from this repository rarely conflicts with your own features. When the hooks aren't enough, add a general-purpose hook to the framework instead of writing the feature into it.
 
-模块通过 `agent.abilities` 提供 MCP 工具。`scripts/mcp-check.ts` 始终检查完整工具集合；模块可在 `mcp.checkArgs` 中提供能在空数据库上成功的检查参数。未提供时，只有入参 schema 接受 `{}` 的工具会用 `{}` 实际调用；其余工具只检查发现，不猜参数。模块工具的业务行为由模块自己的测试验证。
+Modules provide MCP tools through `agent.abilities`. `scripts/mcp-check.ts` always checks the complete tool set; a module can provide check arguments in `mcp.checkArgs` that succeed on an empty database. Without them, only tools whose input schema accepts `{}` are actually called with `{}`; the rest are only checked for discovery, with no guessed arguments. The business behavior of module tools is verified by the module's own tests.
 
-## 数据库迁移
+## Database migrations
 
-已经发布的迁移是部署历史，不能改写或删除；修正放进新的文件。引擎和模块的迁移遵循同一套约定：按完整文件名排序执行，并以完整文件名记录是否已经执行；编号相同的不同文件分别执行，同一完整文件名不能出现在两个目录中。从 `0055` 起，每个文件只放一条允许在线执行的语句，PR 会拒绝不符合约定的新增迁移，也不允许用较小编号绕过检查。这样避免前一条语句锁住表后，又在同一事务里等待别的表或扫描大量数据。
+Released migrations are deployment history and must never be rewritten or deleted; fixes go in new files. Engine and module migrations follow the same conventions: they run in order of their full file name and are recorded by full file name; different files with the same number each run, and the same full file name must not appear in two directories. From `0055` on, each file holds a single statement that is safe to run online; PRs reject new migrations that break this, and a smaller number can't be used to get around the check. This avoids one statement locking a table and then, in the same transaction, waiting on another table or scanning a large amount of data.
 
-新增列优先使用可空列或常量默认值；给已有表加 CHECK、外键时先 `NOT VALID`，再用另一个迁移验证。索引使用单独的 `CREATE INDEX CONCURRENTLY IF NOT EXISTS`；不能在发布迁移里做大批 UPDATE、DELETE 或用 DO 隐藏它们。数据回填需另做分批、可观测的操作，并先在备份副本上验证。
+New columns should be nullable or have a constant default. When adding a CHECK or foreign key to an existing table, add it as `NOT VALID` first and validate it in another migration. Indexes use a separate `CREATE INDEX CONCURRENTLY IF NOT EXISTS`. Release migrations must not run large UPDATEs or DELETEs, or hide them in DO blocks. Data backfills are separate, batched, observable operations, verified on a backup copy first.
 
-多个筛选条件存在相关性、查询计划因此严重低估行数时，可以为这些列创建 MCV 联合统计，再用单独的迁移 `ANALYZE` 指定表的这些列。先用真实分布验证收益；不增加没有依据的统计对象，也不在迁移里做全库分析或跳过被锁住的表后假定成功。
+When several filter conditions are correlated and the query planner badly underestimates row counts as a result, you can create MCV multi-column statistics for those columns, then `ANALYZE` those columns of the table in a separate migration. Verify the gain on the real distribution first; don't add statistics objects without evidence, and don't analyze the whole database in a migration or skip locked tables and assume success.
 
-改类型、删列等破坏性变更需要单独设计升级与回退步骤，在 [部署文档](deploy.md#更新) 说明对已有数据的影响；当前在线迁移检查不会直接放行。代码已不再使用的表，确认可以删掉它的数据后，单独一个迁移文件写 `DROP TABLE IF EXISTS <表>`（不带 CASCADE，仍有对象依赖它时迁移失败），同样在部署文档里写明。需要扩展允许的语句时，先证明它不会长期阻塞正在服务的请求，并补齐相应检查，不能关闭检查或修改旧账本。
+Destructive changes such as changing a type or dropping a column need their own upgrade and rollback steps, with the impact on existing data described in the [deployment guide](deploy.md#updating); the online migration check doesn't let them through directly. For a table the code no longer uses, once it is confirmed its data can be deleted, write `DROP TABLE IF EXISTS <table>` in a migration file of its own (without CASCADE, so the migration fails if objects still depend on it), and document it in the deployment guide as well. To widen the set of allowed statements, first show that the statement won't block requests being served for long, and add the matching checks; never turn off the check or edit the old ledger.
 
-## 对外出口
+## Public outputs
 
-事件的 `related` 关联在建立时须有至少两篇报道支撑。关联历史保留；桥接报道明确撤回、失去公开事实报道资格、改为综合稿、移出原事实，或后续归组判断否定关系后，有效证据不足两篇就不公开展示，恢复足够证据后可重新展示。报道自然超出召回窗口、沿用归属的普通修订不使关联过期。没有可核对桥接判断的既有关联，不从记录缺失推断撤回；事件本身不可公开阅读时仍不推荐。`storyline` 的语义不随这项规则改变，所有公开出口共用读取规则。
+An event's `related` link must be supported by at least two reports when it is created. Link history is kept. When a bridging report is explicitly retracted, loses its eligibility as a public factual report, is reclassified as a roundup, is moved out of the original fact, or a later grouping judgment denies the relation, the link stops being shown publicly once fewer than two valid pieces of evidence remain, and can be shown again once enough evidence returns. A report naturally leaving the recall window, or an ordinary revision that keeps its assignment, doesn't expire a link. For existing links without a checkable bridging judgment, a retraction is not inferred from missing records; an event that can't be read publicly is still not recommended. The meaning of `storyline` doesn't change with this rule, and all public outputs share the read rules.
 
-| 地址 | 内容 |
+| Address | Contents |
 |---|---|
-| `/` `/all` `/hot` `/topics` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、主题、日报周报月报 |
-| `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/weekly.xml` `/feed/monthly.xml` | RSS：精选、精选全文、全部、日报、周报、月报；另有按分类的 `/feed/category/<key>.xml` 和分类全文版 `/feed/full/category/<key>.xml` |
-| `/api/v1/` | 公开 API，文档在 `/openapi-v1.json`；给 Agent 读的 Markdown 从 `/api/v1/agent` 开始；说明页在 `/agent` |
-| `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、周报、月报各一个工具，工具名前缀是 `site/site.ts` 的 `mcpPrefix` |
-| `/llms.txt` `/sitemap.xml` `/robots.txt` | 给大模型和搜索引擎的说明（`robots.txt` 等根目录文件在 `site/public/`） |
-| `/admin` | 后台 |
+| `/` `/all` `/hot` `/topics` `/daily` `/weekly` `/monthly` | Selection, all items, trending events, topics, daily, weekly and monthly reports |
+| `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/weekly.xml` `/feed/monthly.xml` | RSS: selection, selection with full text, everything, daily, weekly, monthly; plus per-category `/feed/category/<key>.xml` and per-category full text `/feed/full/category/<key>.xml` |
+| `/api/v1/` | Public API, documented at `/openapi-v1.json`; Markdown for agents starts at `/api/v1/agent`; the explainer page is `/agent` |
+| `/api/mcp` | MCP server: one tool each for latest, search, trending, events, daily, weekly and monthly; tool names are prefixed with `mcpPrefix` from `site/site.ts` |
+| `/llms.txt` `/sitemap.xml` `/robots.txt` | Information for language models and search engines (root files such as `robots.txt` are in `site/public/`) |
+| `/admin` | Admin |
 
-## 测试
+## Tests
 
 ```bash
 npm run typecheck
@@ -107,4 +107,4 @@ DATABASE_URL=postgres://127.0.0.1:5432/myhot_test npm test
 npm run build -w @aihot/web && npm run test:web
 ```
 
-`DATABASE_URL` 指向的库名必须以 `_test` 或 `_ci` 结尾；没有会自动创建并迁移。每个测试文件在它的一份副本上并行运行，所以数据库账号要有建库权限（`CREATEDB`）。测试不访问任何外部服务：模型和付费接口都由本地假服务回答。
+The database name in `DATABASE_URL` must end in `_test` or `_ci`; it is created and migrated automatically if missing. Each test file runs in parallel on its own copy, so the database account needs permission to create databases (`CREATEDB`). Tests never reach external services: models and paid APIs are answered by local fake services.

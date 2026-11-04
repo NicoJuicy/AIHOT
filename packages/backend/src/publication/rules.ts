@@ -62,7 +62,7 @@ export function isSelectable(eligible: boolean, judgedSelected: boolean | null, 
 
 /**
  * Site full text: the source licence allows showing it and we have confirmed body text.
- * WeChat and paywalled content never get it just because it was fetchable (source flag false).
+ * Paywalled content never gets it just because it was fetchable (source flag false).
  */
 export function bodyModeOf(source: SourceFacts, bodyStatus: string, hasBody: boolean): "full" | "summary" {
   return source.site_fulltext && bodyStatus === "ok" && hasBody ? "full" : "summary";
@@ -88,8 +88,8 @@ export function displayTags(tags: string[]): string[] {
 
 /**
  * The source name readers see. Admin names carry notes for editors in full-width brackets: the channel,
- * what a feed keeps, a person's role or why the account is followed (「OpenAI：官网动态（RSS · 排除企业/客户案例）」,
- * 「某媒体（热点 RSS）」, 「X：Clément Delangue（Hugging Face CEO） (@ClementDelangue)」). Readers get the name
+ * what a feed keeps, a person's role or why the account is followed ("OpenAI: Blog（RSS · excluding customer stories）",
+ * "Some Outlet（trending RSS）", "X: Clément Delangue（Hugging Face CEO） (@ClementDelangue)"). Readers get the name
  * without them, and an X account its display name (its handle when the name is only a note). Every
  * exit people read uses this, and search matches it; JSON fields keep the stored name, which programs
  * may match.

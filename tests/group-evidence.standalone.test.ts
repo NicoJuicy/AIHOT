@@ -6,10 +6,10 @@ import { test } from 'node:test';
 import { batchUser, describeReport, type ReportView } from '@aihot/backend/events/relate';
 
 test('grouping includes late evidence from both sides within its ten-thousand-character allowance',()=>{
-  const sourceText='前'.repeat(6500)+'后半部的独立分析证据'+'后'.repeat(3500)+'上限之外';
-  const report:ReportView={title:'研究发布后的长文解读',source:'Example',firstParty:false,at:new Date(),summary:'概述',sourceText};
-  const prompt=batchUser(report,[],'新报道',[{report:{...report,sourceText:null},sourceText}]);
-  assert.equal(prompt.split('后半部的独立分析证据').length-1,2);
-  assert.ok(!prompt.includes('上限之外'));
-  assert.ok(describeReport({...report,sourceText:'短正文'},'新报道').includes('短正文'));
+  const sourceText='a'.repeat(6500)+'LATE-INDEPENDENT-EVIDENCE'+'b'.repeat(3500)+'BEYOND-THE-LIMIT';
+  const report:ReportView={title:'A long read on the research release',source:'Example',firstParty:false,at:new Date(),summary:'Overview',sourceText};
+  const prompt=batchUser(report,[],'New report',[{report:{...report,sourceText:null},sourceText}]);
+  assert.equal(prompt.split('LATE-INDEPENDENT-EVIDENCE').length-1,2);
+  assert.ok(!prompt.includes('BEYOND-THE-LIMIT'));
+  assert.ok(describeReport({...report,sourceText:'Short body'},'New report').includes('Short body'));
 });

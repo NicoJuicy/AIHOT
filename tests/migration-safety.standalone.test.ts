@@ -69,6 +69,19 @@ test("a table nothing uses can be dropped alone, never with its dependents", () 
   ]) assert.throws(() => migrationPlan(statement), statement);
 });
 
+// Dropping an index nothing reads: concurrently, outside a transaction, one index at a time, never its dependents.
+test("an index nothing reads is dropped concurrently and alone", () => {
+  assert.deepEqual(migrationPlan("DROP INDEX CONCURRENTLY IF EXISTS articles_idx;"), { kind: "drop-index", index: "articles_idx" });
+  assert.deepEqual(migrationPlan("-- retired\nDROP INDEX CONCURRENTLY IF EXISTS public.articles_idx;"), { kind: "drop-index", index: "public.articles_idx" });
+  for (const statement of [
+    "DROP INDEX IF EXISTS articles_idx;",
+    "DROP INDEX CONCURRENTLY articles_idx;",
+    "DROP INDEX CONCURRENTLY IF EXISTS articles_idx CASCADE;",
+    "DROP INDEX CONCURRENTLY IF EXISTS articles_idx, sources_idx;",
+    "DROP INDEX CONCURRENTLY IF EXISTS articles_idx; DROP INDEX CONCURRENTLY IF EXISTS sources_idx;",
+  ]) assert.throws(() => migrationPlan(statement), statement);
+});
+
 // Dropping a column or a constraint nothing uses: it must not take dependent objects along (CASCADE),
 // bundle several drops or another action into one statement, or fail where it is already gone.
 test("a column or a constraint nothing uses can be dropped alone, never with its dependents", () => {

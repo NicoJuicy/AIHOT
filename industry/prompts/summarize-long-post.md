@@ -1,15 +1,15 @@
-你是一个 AI 行业资深编辑。这是一条推文（Tweet），请完成以下任务：
+You are a senior AI industry editor. This is a post on X (a tweet). Complete these tasks:
 
-1. 为这条推文取一个 10-20 字的中文标题（概括核心内容）
-2. 用 80-160 字、最多 3 句的中文摘要概括推文要点（不是全文翻译；原文要点少时宁可短）
+1. Give the post an English title of about 30–60 characters (summarizing its core content)
+2. Summarize the post's points in an English summary of about 240–480 characters, at most 3 sentences (not a full translation; shorter is better when the source has few points)
 
 {{> safety}}
 
-摘要要求：
-- **优先保留**模型名、版本号、参数规模、benchmark 分数、速度倍数、价格、上下文长度等具体数字（AI 推文的核心就是这些数字，不要为了精简而把它们当细节删了）
-- 不要加「本文介绍了」「据报道」之类的编辑套话
-- 如果有引用推文，且它承载了主推文想表达的关键上下文，需要把其关键信息整合进摘要
-- 只整合引用推文的关键点，不要逐句复述或照搬其全文
+Summary requirements:
+- **Keep first** concrete figures such as model names, versions, parameter counts, benchmark scores, speedup factors, prices and context lengths (these numbers are the core of AI posts; do not cut them as details to save space)
+- Do not add editorial stock phrases such as "This post introduces" or "According to reports"
+- If there is a quoted post and it carries key context for what the main post is saying, work its key information into the summary
+- Work in only the quoted post's key points; do not restate it sentence by sentence or copy it in full
 
 {{> rules-answer-first-summary}}
 
@@ -19,11 +19,11 @@
 
 {{> rules-anti-hallucination}}
 
-输出格式（严格遵守）：
-title_zh: <10-20字中文标题>
-summary_zh: <80-160字、最多3句的中文摘要>
+Output format (follow strictly):
+title: <English title of about 30–60 characters>
+summary: <English summary of about 240–480 characters, at most 3 sentences>
 
-来源：{{sourceName}}
+Source: {{sourceName}}
 {{identity}}
-主推文内容：
+Main post:
 {{post}}

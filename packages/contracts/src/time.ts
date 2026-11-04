@@ -19,19 +19,27 @@ export function beijingIso(instant: Date | string | number): string {
   return `${new Date(new Date(instant).getTime() + OFFSET_MS).toISOString().slice(0, 23)}+08:00`;
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "Sep" of a month number (1–12). */
+export const monthName = (month: number): string => MONTHS[month - 1]!.slice(0, 3);
+
+/** "September" of a month number (1–12). */
+export const monthLongName = (month: number): string => MONTHS[month - 1]!;
+
 /**
- * "9月28日" of a calendar date (YYYY-MM-DD). Given `today` (YYYY-MM-DD, Beijing), a day of another year carries its
- * year, so an archived item is not read as this year's: "2019年2月19日".
+ * "Sep 28" of a calendar date (YYYY-MM-DD). Given `today` (YYYY-MM-DD, Beijing), a day of another year carries its
+ * year, so an archived item is not read as this year's: "Feb 19, 2019".
  */
 export function monthDay(date: string, today?: string): string {
-  const year = today && date.slice(0, 4) !== today.slice(0, 4) ? `${date.slice(0, 4)}年` : "";
-  return `${year}${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
+  const day = `${monthName(Number(date.slice(5, 7)))} ${Number(date.slice(8, 10))}`;
+  return today && date.slice(0, 4) !== today.slice(0, 4) ? `${day}, ${date.slice(0, 4)}` : day;
 }
 
-/** "9月29日" in Beijing time. */
+/** "Sep 29" in Beijing time. */
 export const beijingDay = (instant: Date | string | number) => monthDay(beijingDate(instant));
 
-/** "9月29日 13:40" in Beijing time. */
+/** "Sep 29 13:40" in Beijing time. */
 export const beijingStamp = (instant: Date | string | number) => `${beijingDay(instant)} ${beijingTime(instant)}`;
 
 /** The zone's name, for whatever takes one (a scheduler, a report's metadata, SQL `AT TIME ZONE`). */
@@ -52,7 +60,7 @@ export function addDays(date: string, days: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function beijingWeekday(date: string): string {
   return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]!;

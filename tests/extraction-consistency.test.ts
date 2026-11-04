@@ -137,7 +137,7 @@ test("an audited presentation refresh previews and applies only the reviewed lay
   assert.deepEqual(await rerun(articleId, "presentation", "apply-layout", "test", { version: preview.version }), applied, "the audited request is idempotent");
   assert.equal((await sql`SELECT 1 FROM audit_log WHERE subject=${`content:${articleId}`} AND action='content.rerun.presentation'`).length, 1);
   await sql`INSERT INTO translations(article_id,lang,revision,body_html,body_text,complete,origin)
-    VALUES (${articleId},'zh',${before.revision},'<p>原有的<a href="https://example.com/legacy">中文</a>译文。</p>','原有的中文译文。',true,'model')`;
+    VALUES (${articleId},'zh',${before.revision},'<p>The existing <a href="https://example.com/legacy">translated</a> text.</p>','The existing translated text.',true,'model')`;
   const unchanged = await rerun(articleId, "presentation", "preview-unchanged", "test", { preview: true });
   assert.equal(unchanged?.changed, false);
   assert.equal(unchanged?.ready, true, "unchanged original HTML does not require reusing mismatched historical translation structure");
@@ -145,12 +145,12 @@ test("an audited presentation refresh previews and applies only the reviewed lay
   const unsafe = await rerun(articleId, "presentation", "preview-links", "test", { preview: true });
   assert.equal(unsafe?.ready, false);
   assert.equal(unsafe?.translation, "blocked");
-  assert.match(unsafe?.reason ?? "", /正常重翻/);
+  assert.match(unsafe?.reason ?? "", /normal retranslation/);
   presentationHtml = `<p>${body} The actual model price has changed.</p>`;
   const semantic = await rerun(articleId, "presentation", "preview-wording", "test", { preview: true });
   assert.ok(semantic && "ready" in semantic && !semantic.ready);
-  assert.match(semantic.reason ?? "", /文字/);
-  await assert.rejects(rerun(articleId, "presentation", "apply-wording", "test", { version: preview.version }), /预览|变化|文字/);
+  assert.match(semantic.reason ?? "", /text/);
+  await assert.rejects(rerun(articleId, "presentation", "apply-wording", "test", { version: preview.version }), /preview|changed|text/);
 });
 
 test("an audited RSS presentation refresh uses the source body without substituting the web-page wording", async () => {

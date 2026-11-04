@@ -13,13 +13,11 @@ test("a date and time without a zone is in the source's offset, not the server's
   assert.equal(iso("2026-09-26 10:00"), "2026-09-26T02:00:00.000Z");
   assert.equal(iso("2026-09-26T10:00:00"), "2026-09-26T02:00:00.000Z");
   assert.equal(iso("2026/09/26 10:00"), "2026-09-26T02:00:00.000Z");
-  assert.equal(iso("2026年9月26日 10:00"), "2026-09-26T02:00:00.000Z");
   assert.equal(iso("2026-09-26 10:00", "-07:00"), "2026-09-26T17:00:00.000Z");
 });
 
 test("a bare date is midnight in the source's offset, including ISO date-only text", () => {
   assert.equal(iso("2026/09/26"), "2026-09-25T16:00:00.000Z");
-  assert.equal(iso("2026年9月26日"), "2026-09-25T16:00:00.000Z");
   assert.equal(iso("Sep 26, 2026"), "2026-09-25T16:00:00.000Z");
   assert.equal(iso("2026-09-26"), "2026-09-25T16:00:00.000Z");
   assert.equal(iso("September 26th, 2026", "+00:00"), "2026-09-26T00:00:00.000Z");
@@ -95,10 +93,10 @@ test("English times with explicit zones retain their zone on every host", () => 
   }
 });
 
-test("CST, which Chinese pages print for China time, is read in the source's offset", () => {
-  assert.equal(iso("2026-09-26 10:00:00 CST"), "2026-09-26T02:00:00.000Z");
-  assert.equal(iso("Sep 26, 2026 10:00 PM CST"), "2026-09-26T14:00:00.000Z");
-  assert.equal(iso("2026-09-26 10:00 CST", "-06:00"), "2026-09-26T16:00:00.000Z");
+test("CST is US Central, like the other US zone abbreviations, whatever the source's offset", () => {
+  assert.equal(iso("2026-09-26 10:00:00 CST"), "2026-09-26T16:00:00.000Z");
+  assert.equal(iso("Sep 26, 2026 10:00 PM CST"), "2026-09-27T04:00:00.000Z");
+  assert.equal(iso("2026-09-26 10:00 CST", "+00:00"), "2026-09-26T16:00:00.000Z");
 });
 
 test("an article page's publication time without a zone is the same moment across host zones", () => {
@@ -147,15 +145,15 @@ test('all date-only formats retain the source calendar day and use its offset', 
 
 test('real midnight keeps its precision; date-only and missing source precision never invent it', () => {
   assert.deepEqual(readPublicationDate('2026-10-13T00:00:00-07:00'), { publishedAt: new Date('2026-10-13T07:00:00Z'), publicationTime: '2026-10-13T07:00:00.000Z' });
-  assert.equal(describePublicationTime(new Date('2026-10-13T07:00:00Z'), '2026-10-13'), '2026-10-13（原文仅有日期，时刻未知）');
-  assert.equal(describePublicationTime(new Date('2026-10-13T07:00:00Z'), null), '2026-10-13 15:00（历史记录，原始精度未知）');
-  assert.equal(describePublicationTime(null, null), '未知');
+  assert.equal(describePublicationTime(new Date('2026-10-13T07:00:00Z'), '2026-10-13'), '2026-10-13 (date only in source; time unknown)');
+  assert.equal(describePublicationTime(new Date('2026-10-13T07:00:00Z'), null), '2026-10-13 15:00 (historical record; original precision unknown)');
+  assert.equal(describePublicationTime(null, null), 'unknown');
 });
 
 test('grouping distinguishes a publication day from an exact instant', () => {
   const report = { title: 'Release', source: 'Official', firstParty: true, at: new Date('2026-10-13T07:00:00Z'), publicationTime: '2026-10-13', summary: null };
-  const text = describeReport(report, '报道');
-  assert.match(text, /发布时间：2026-10-13（原文仅有日期，时刻未知）/);
+  const text = describeReport(report, 'Report');
+  assert.match(text, /2026-10-13 \(date only in source; time unknown\)/);
   assert.doesNotMatch(text, /15:00/);
 });
 
@@ -176,40 +174,39 @@ test("legacy JSON and RSS formats keep their source date and zone", () => {
 
 test("a date rule's element that prints an age counts back from the moment it is read", () => {
   const now = new Date("2026-10-24T01:30:00.000Z"); // 09:30 in +08:00
-  assert.deepEqual(readRelativeDate("20小时前", now), { publishedAt: new Date("2026-10-23T05:30:00.000Z"), publicationTime: "2026-10-23T05:30:00.000Z" });
-  assert.deepEqual(readRelativeDate(" 15 分钟前 ", now), { publishedAt: new Date("2026-10-24T01:15:00.000Z"), publicationTime: "2026-10-24T01:15:00.000Z" });
+  assert.deepEqual(readRelativeDate("20 hours ago", now), { publishedAt: new Date("2026-10-23T05:30:00.000Z"), publicationTime: "2026-10-23T05:30:00.000Z" });
+  assert.deepEqual(readRelativeDate(" 15 minutes ago ", now), { publishedAt: new Date("2026-10-24T01:15:00.000Z"), publicationTime: "2026-10-24T01:15:00.000Z" });
   assert.deepEqual(readRelativeDate("3 hours ago", now, "+00:00"), { publishedAt: new Date("2026-10-23T22:30:00.000Z"), publicationTime: "2026-10-23T22:30:00.000Z" });
   // More than a day of hours is still hours: its time is kept, not cut to a calendar day.
-  assert.deepEqual(readRelativeDate("47小时前", now), { publishedAt: new Date("2026-10-22T02:30:00.000Z"), publicationTime: "2026-10-22T02:30:00.000Z" });
+  assert.deepEqual(readRelativeDate("47 hours ago", now), { publishedAt: new Date("2026-10-22T02:30:00.000Z"), publicationTime: "2026-10-22T02:30:00.000Z" });
   // Days keep the calendar day in the source's offset.
-  assert.deepEqual(readRelativeDate("2天前", now), { publishedAt: new Date("2026-10-21T16:00:00.000Z"), publicationTime: "2026-10-22" });
-  assert.deepEqual(readRelativeDate("昨天", now), { publishedAt: new Date("2026-10-22T16:00:00.000Z"), publicationTime: "2026-10-23" });
+  assert.deepEqual(readRelativeDate("2 days ago", now), { publishedAt: new Date("2026-10-21T16:00:00.000Z"), publicationTime: "2026-10-22" });
+  assert.deepEqual(readRelativeDate("yesterday", now), { publishedAt: new Date("2026-10-22T16:00:00.000Z"), publicationTime: "2026-10-23" });
   // 22:30 on the 23rd in -03:00, a day back is the 22nd there.
   assert.deepEqual(readRelativeDate("1 day ago", now, "-03:00"), { publishedAt: new Date("2026-10-22T03:00:00.000Z"), publicationTime: "2026-10-22" });
 });
 
 test("an age inside other text is no date", () => {
   const now = new Date("2026-10-24T01:30:00.000Z");
-  for (const v of ["两天前开业的店", "大约2天前", "2天前 1.1万", "", null]) assert.deepEqual(readRelativeDate(v, now), { publishedAt: null, publicationTime: null });
+  for (const v of ["the shop opened two days ago", "about 2 days ago", "2 days ago 11K", "", null]) assert.deepEqual(readRelativeDate(v, now), { publishedAt: null, publicationTime: null });
 });
 
 test("a date rule's element that prints today's or a recent day's time reads it on that day in the source's offset", () => {
   const now = new Date("2026-10-24T10:30:00.000Z"); // 18:30 in +08:00
   const at = (iso: string) => ({ publishedAt: new Date(iso), publicationTime: new Date(iso).toISOString() });
-  assert.deepEqual(readRelativeDate("今天 15:46", now), at("2026-10-24T07:46:00Z"));
-  assert.deepEqual(readRelativeDate("今天08:29", now), at("2026-10-24T00:29:00Z"));
-  assert.deepEqual(readRelativeDate("昨天 23:10", now), at("2026-10-23T15:10:00Z"));
-  assert.deepEqual(readRelativeDate("前天 08:05", now), at("2026-10-22T00:05:00Z"));
-  // 01:30Z is 09:30 on the 24th in +08:00 but 22:30 on the 23rd in -03:00: "今天" is the source's day.
-  assert.deepEqual(readRelativeDate("今天 21:00", new Date("2026-10-24T01:30:00.000Z"), "-03:00"), at("2026-10-24T00:00:00Z"));
+  assert.deepEqual(readRelativeDate("today 15:46", now), at("2026-10-24T07:46:00Z"));
+  assert.deepEqual(readRelativeDate("Today 08:29", now), at("2026-10-24T00:29:00Z"));
+  assert.deepEqual(readRelativeDate("yesterday 23:10", now), at("2026-10-23T15:10:00Z"));
+  // 01:30Z is 09:30 on the 24th in +08:00 but 22:30 on the 23rd in -03:00: "today" is the source's day.
+  assert.deepEqual(readRelativeDate("today 21:00", new Date("2026-10-24T01:30:00.000Z"), "-03:00"), at("2026-10-24T00:00:00Z"));
 });
 
 test("a byline ahead of the date in the same element is no part of it", () => {
   const now = new Date("2026-10-24T10:30:00.000Z");
-  // 创业邦 prints its author and the age in one element: "版面之外·今天 15:46", "创业邦的创作者·48分钟前".
-  assert.deepEqual(readRelativeDate("版面之外·今天 15:46", now), readRelativeDate("今天 15:46", now));
-  assert.deepEqual(readRelativeDate("创业邦的创作者·48分钟前", now), { publishedAt: new Date("2026-10-24T09:42:00Z"), publicationTime: "2026-10-24T09:42:00.000Z" });
-  assert.deepEqual(readRelativeDate("20社 · 昨天 09:00", now), readRelativeDate("昨天 09:00", now));
+  // Some listings print the author and the age in one element: "Jane Doe · today 15:46", "The editors·48 minutes ago".
+  assert.deepEqual(readRelativeDate("Jane Doe · today 15:46", now), readRelativeDate("today 15:46", now));
+  assert.deepEqual(readRelativeDate("The editors·48 minutes ago", now), { publishedAt: new Date("2026-10-24T09:42:00Z"), publicationTime: "2026-10-24T09:42:00.000Z" });
+  assert.deepEqual(readRelativeDate("Newsroom · yesterday 09:00", now), readRelativeDate("yesterday 09:00", now));
 });
 
 test("an age in short English units reads like the long ones", () => {
@@ -222,7 +219,7 @@ test("an age in short English units reads like the long ones", () => {
 
 test("today's time inside other text, or no real time, is no date", () => {
   const now = new Date("2026-10-24T10:30:00.000Z");
-  for (const v of ["据说今天 15:46 发布", "今天 25:00", "今天 15:61", "版面之外·今天 15:46 1.1万", "关于·两天前开业的店", "甲·乙·今天 15:46", "·今天 15:46", "16h", "29 m ago later"]) {
+  for (const v of ["reportedly out today 15:46", "today 25:00", "today 15:61", "Jane Doe · today 15:46 11K", "About · the shop opened two days ago", "A · B · today 15:46", "· today 15:46", "16h", "29 m ago later"]) {
     assert.deepEqual(readRelativeDate(v, now), { publishedAt: null, publicationTime: null }, v);
   }
 });

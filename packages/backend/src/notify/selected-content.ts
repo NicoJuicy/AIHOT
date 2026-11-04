@@ -31,7 +31,7 @@ interface Row {
 }
 
 /** The original's publication date, so a launch introduced again weeks later does not read as today's. */
-const published = (at: Date) => `${beijingDay(at)}发布`;
+const published = (at: Date) => `published ${beijingDay(at)}`;
 
 /** Model-written words go into card markdown: its markup characters are shown as written. */
 const literal = (text: string) => text.replace(/[&<>*_~`[\]]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -53,8 +53,8 @@ function card(r: Row) {
         { tag: "markdown", text_size: "title", content: `**${literal(r.title)}**${tag}` },
         { tag: "markdown", text_size: "notation", content: `<font color='grey'>${literal(publicSourceName(r.source_name))} · ${published(r.published_at!)}</font>` },
         { tag: "markdown", content: literal(r.summary ?? "") },
-        ...(r.reason ? [{ tag: "markdown", text_size: "notation", content: `<font color='grey'>**${ITEM_COPY.reasonLabel}**　${literal(r.reason)}</font>` }] : []),
-        { tag: "column_set", horizontal_spacing: "8px", columns: [link(`在 ${SITE.name} 阅读`, itemUrl(r.article_id), "primary"), link("原文", r.url, "default")] },
+        ...(r.reason ? [{ tag: "markdown", text_size: "notation", content: `<font color='grey'>**${ITEM_COPY.reasonLabel}:** ${literal(r.reason)}</font>` }] : []),
+        { tag: "column_set", horizontal_spacing: "8px", columns: [link(`Read on ${SITE.name}`, itemUrl(r.article_id), "primary"), link("Original", r.url, "default")] },
       ],
     },
   };

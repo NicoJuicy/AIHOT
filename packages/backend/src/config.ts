@@ -31,6 +31,14 @@ function bool(name: string, fallback: boolean): boolean {
   return value === "true";
 }
 
+/** A header value must be printable on one line; refuse it at startup rather than on the first fetch. */
+function crawlerUserAgent(value: string | undefined): string | null {
+  const ua = value?.trim();
+  if (!ua) return null;
+  if (!/^[\x20-\x7e]+$/.test(ua)) throw new Error("CRAWLER_USER_AGENT must be printable ASCII on one line");
+  return ua;
+}
+
 export const isProduction = env.NODE_ENV === "production";
 
 /** AIHOT_CREDENTIALS_DIR, else the site's own default (relative to the repository). */
@@ -42,6 +50,8 @@ export const config = {
   // Every generated absolute link uses this address, whatever Host a request arrives with.
   siteUrl: str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, ""),
   egressProxyUrl: env.EGRESS_PROXY_URL || null,
+  /** The whole User-Agent of outbound fetches, replacing the default built from SITE_URL (http-fetch.ts DEFAULT_UA). */
+  crawlerUserAgent: crawlerUserAgent(env.CRAWLER_USER_AGENT),
   allowPrivateNetworkFetch: bool("ALLOW_PRIVATE_NETWORK_FETCH", false),
   /** Whole host names of self-hosted feed services on private addresses; only listing fetches use them. */
   privateFeedHosts: (env.PRIVATE_FEED_HOSTS || "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean),

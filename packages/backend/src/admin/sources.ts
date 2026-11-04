@@ -106,7 +106,7 @@ export async function previewSource(draft: Pick<SourceRow, "id" | "kind" | "conf
   const reads = await enrichDetails(candidates, source, known, { budget: Number(source.config.detail?.maxFetches ?? 0), datedOut: {}, retries: {}, admits });
   // A page that fails keeps its listing data, as in collection; when none can be read, the rules are what fails.
   if (reads.failures.length && reads.failures.length === reads.attempts) {
-    throw new FetchError(`原文页全部读取失败（${reads.failures.length} 页）：${reads.failures.map((f) => `${f.url}（${f.error}）`).join("；")}`);
+    throw new FetchError(`Every original page failed to load (${reads.failures.length} ${reads.failures.length === 1 ? "page" : "pages"}): ${reads.failures.map((f) => `${f.url} (${f.error})`).join("; ")}`);
   }
   candidates = candidates.filter(admits);
   return {
@@ -117,7 +117,7 @@ export async function previewSource(draft: Pick<SourceRow, "id" | "kind" | "conf
 }
 
 /** A class of the industry pack (industry/selection.ts), or none. */
-const SelectionClass = z.string().refine((c) => Object.hasOwn(SELECTION.classes, c), { message: "不是行业包里的信源类别" }).nullable();
+const SelectionClass = z.string().refine((c) => Object.hasOwn(SELECTION.classes, c), { message: "Not a source class in the industry pack" }).nullable();
 
 const EDITABLE = z
   .object({
@@ -158,15 +158,15 @@ async function saveSource(id: string, patch: z.infer<typeof EDITABLE>, input: { 
     if (patch.config) await tx`SELECT pg_advisory_xact_lock(hashtext('admin-source-identity'))`;
     const [before] = await tx`SELECT * FROM sources WHERE id = ${id} FOR UPDATE`;
     if (!before) return null;
-    if (new Date(before.updated_at as Date).toISOString() !== input.version) throw new Conflict("信源已被其他操作修改，请刷新后再改");
+    if (new Date(before.updated_at as Date).toISOString() !== input.version) throw new Conflict("The source was changed by another action; please refresh before editing");
     const kindChanged = patch.kind !== undefined && patch.kind !== before.kind;
-    if (patch.kind !== undefined && !patch.config) throw new UnsupportedConfig("调整采集方式须同时提供完整采集配置");
+    if (patch.kind !== undefined && !patch.config) throw new UnsupportedConfig("Changing the collection method requires a complete collection config");
     if (kindChanged) {
-      if (!(REPLACEABLE_SOURCE_KINDS as readonly string[]).includes(String(before.kind))) throw new UnsupportedConfig("仅 RSS、网页列表和 JSON 列表之间可调整采集方式");
+      if (!(REPLACEABLE_SOURCE_KINDS as readonly string[]).includes(String(before.kind))) throw new UnsupportedConfig("The collection method can only be changed between RSS, web list and JSON list");
       assertReplacementConfig(patch.kind!, patch.config!);
       const boundary = (before.config as Record<string, unknown>).publishedAfter;
       if (boundary) {
-        if (patch.config!.publishedAfter !== undefined && Date.parse(String(patch.config!.publishedAfter)) < Date.parse(String(boundary))) throw new UnsupportedConfig("调整采集方式不能扩大既有发布时间范围");
+        if (patch.config!.publishedAfter !== undefined && Date.parse(String(patch.config!.publishedAfter)) < Date.parse(String(boundary))) throw new UnsupportedConfig("Changing the collection method cannot widen the existing publish time range");
         patch.config!.publishedAfter ??= boundary;
       }
     }
@@ -179,7 +179,7 @@ async function saveSource(id: string, patch: z.infer<typeof EDITABLE>, input: { 
       // feed on purpose, with different filters, keep editing their other settings.)
       const moved = kindChanged || sourceIdentity(nextKind, patch.config) !== sourceIdentity(String(before.kind), before.config as Record<string, unknown>);
       const dup = moved ? await findDuplicateSource(nextKind, patch.config, id, tx) : null;
-      if (dup) throw new Conflict(`与已有信源重复：${dup.name}（${dup.id}）`);
+      if (dup) throw new Conflict(`Duplicates an existing source: ${dup.name} (${dup.id})`);
     }
     const keys = Object.keys(patch) as Array<keyof typeof patch>;
     if (!keys.length) return before;
@@ -226,15 +226,15 @@ function assertReplacementConfig(kind: string, config: Record<string, unknown>):
   try {
     const url = new URL(String(address ?? ""));
     if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw new Error();
-  } catch { throw new UnsupportedConfig("完整采集配置须包含有效的 HTTP(S) 地址"); }
-  if (kind === "json_list" && (!Array.isArray(config.titlePaths) || !config.titlePaths.length || !config.titlePaths.every(p => typeof p === "string" && p.trim()) || !(config.urlTemplate || config.urlTemplateFallback))) throw new UnsupportedConfig("JSON 列表须提供标题路径和文章地址模板");
+  } catch { throw new UnsupportedConfig("A complete collection config must include a valid HTTP(S) URL"); }
+  if (kind === "json_list" && (!Array.isArray(config.titlePaths) || !config.titlePaths.length || !config.titlePaths.every(p => typeof p === "string" && p.trim()) || !(config.urlTemplate || config.urlTemplateFallback))) throw new UnsupportedConfig("A JSON list needs title paths and an article URL template");
 }
 
 const CreateSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
     name: z.string().min(1).max(200),
-    kind: z.enum(["rss", "web_list", "json_list", "x_search", "mp_account", "external"]),
+    kind: z.enum(["rss", "web_list", "json_list", "x_search", "external"]),
     config: z.record(z.string(), z.unknown()),
     tier: z.enum(["T1", "T1_5", "T2", "EXCLUDE_MP"]).default("T2"),
     selection_class: SelectionClass.default(null),
@@ -254,11 +254,6 @@ export function sourceIdentity(kind: string, config: Record<string, unknown>): s
   if (kind === "x_search") {
     const handle = xHandle(config);
     return handle ? `x:${handle.toLowerCase()}` : null;
-  }
-  // A WeChat account is one account whichever id names it.
-  if (kind === "mp_account") {
-    const id = String(config.ghid ?? config.wxid ?? "").trim().toLowerCase();
-    return id ? `mp:${id}` : null;
   }
   if (!raw) return null;
   return normalizeUrl(String(raw).replace(/^https:\/\/r\.jina\.ai\//, "")) ?? String(raw);
@@ -286,7 +281,7 @@ export async function createSource(input: unknown, actor: string): Promise<Befor
     VALUES (${s.id}, ${s.name}, ${s.kind}, ${tx.json(s.config as never)}, ${s.tier}, ${s.selection_class}, ${s.participation_mode}, ${s.uses}, ${s.interval_minutes}, ${s.first_party}, ${s.tags},
             ${s.site_fulltext}, ${s.syndicate_fulltext}, now())
     ON CONFLICT (id) DO NOTHING RETURNING *`;
-    if (!row) throw new Conflict(`信源 ID ${s.id} 已存在`);
+    if (!row) throw new Conflict(`Source ID ${s.id} already exists`);
     await audit(actor, "source.create", `source:${s.id}`, null, null, s, { db: tx });
     return { created: true as const, source: row };
   });
@@ -305,10 +300,7 @@ export async function fetchNow(id: string, actor: string) {
     await audit(actor, "source.fetch", `source:${id}`, null, null, await own(s));
     return { jobId: null };
   }
-  const jobId =
-    s.kind === "mp_account"
-      ? await enqueue(QUEUES.mpCheck, { sourceId: id, reason: "manual" }, { singletonKey: `mp:${id}` })
-      : await enqueue(QUEUES.fetchSource, { sourceId: id, force: true }, { singletonKey: `manual:${id}` });
+  const jobId = await enqueue(QUEUES.fetchSource, { sourceId: id, force: true }, { singletonKey: `manual:${id}` });
   await audit(actor, "source.fetch", `source:${id}`, null, null, { jobId });
   return { jobId };
 }
